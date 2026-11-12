@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7f6">
+  <title>Formen erstellen — 3D-Werkstatt</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Formen erstellen Startseite">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="m4 8 8-4 8 4v8l-8 4-8-4V8Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="m4.5 8.3 7.5 4 7.5-4M12 12.5V20" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span>Formen erstellen</span>
+      </a>
+      <span class="local-badge">Läuft lokal auf deinem Rechner</span>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div>
+          <p class="eyebrow">3D-Werkstatt · Maße in Millimetern</p>
+          <h1>Deine Box. Dein Maß.</h1>
+          <p class="intro-copy">Gestalte Boxen und Behälter nach Maß und sieh dein Modell direkt in 3D.</p>
+        </div>
+        <div class="intro-note"><span class="note-icon">i</span><span>Die Vorschau ist ein technischer Entwurf – vor dem Druck bitte im Slicer prüfen.</span></div>
+      </section>
+
+      <section class="workspace" aria-label="3D-Modell erstellen">
+        <aside class="editor-column">
+          <section class="panel editor-card">
+            <div class="panel-heading">
+              <div>
+                <h2>Form & Maße</h2>
+                <p>Wähle eine Form und gib ihre Maße ein.</p>
+              </div>
+              <span class="step">01</span>
+            </div>
+            <label class="field-label" for="body-shape">Körperform</label>
+            <select class="select-control" id="body-shape">
+              <option value="container">Rechteckige Box</option>
+              <option value="roundContainer">Runder Behälter</option>
+              <option value="box">Quader</option>
+              <option value="cylinder">Zylinder</option>
+              <option value="sphere">Kugel</option>
+            </select>
+            <div id="container-settings">
+              <div class="field-grid">
+                <label class="field-group">
+                  <span class="field-label">Maßangabe</span>
+                  <select class="select-control" id="measure-mode">
+                    <option value="outside">Außenmaße</option>
+                    <option value="inside">Innenmaße</option>
+                  </select>
+                </label>
+                <label class="field-group">
+                  <span class="field-label">Wandstärke (mm)</span>
+                  <input class="field-input" id="wall-thickness" type="number" min="0.5" max="50" step="0.1" value="2">
+                </label>
+                <label class="field-group">
+                  <span class="field-label">Bodenstärke (mm)</span>
+                  <input class="field-input" id="base-thickness" type="number" min="0.5" max="50" step="0.1" value="2">
+                </label>
+              </div>
+              <p class="field-hint" id="container-measures"></p>
+            </div>
+            <div id="body-fields" class="field-grid"></div>
+            <div class="divider"></div>
+            <label class="field-label" for="fillet-radius">Kanten abrunden</label>
+            <div class="input-with-unit">
+              <input id="fillet-radius" type="number" min="0" max="1000" step="0.1" value="0" inputmode="decimal">
+              <span>mm</span>
+            </div>
+            <p class="field-hint">Ein gemeinsamer Radius für die gewählten Kanten. Radius 0 lässt sie scharf.</p>
+            <div id="edge-options">
+              <button type="button" class="add-button edge-mode" id="edge-mode" aria-pressed="false">Kanten in 3D auswählen</button>
+              <p class="field-hint">Im Auswahlmodus farbige Markierungen anklicken: Orange ist ausgewählt, Blau nicht. Sie zeigen die ursprünglichen Kanten und werden nicht exportiert. Zum Bearbeiten der Fächer den Auswahlmodus wieder ausschalten.</p>
+              <div class="edge-actions"><button type="button" class="add-button" id="edges-all">Alle auswählen</button><button type="button" class="add-button" id="edges-none">Keine auswählen</button></div>
+              <fieldset class="edge-list" id="edge-list"><legend class="field-label">Kanten des Grundkörpers</legend></fieldset>
+              <p class="field-hint">Für große Rundungen an Boxen nur senkrechte Kanten auswählen. Waagerechte Rundungen sind durch Wand- und Bodenstärke begrenzt.</p>
+            </div>
+          </section>
+
+          <section class="panel editor-card" id="box-options">
+            <div class="panel-heading">
+              <div><h2>Fächer & Deckel</h2><p>Unterteilungen und ein separater Steckdeckel.</p></div>
+              <span class="step">02</span>
+            </div>
+            <div class="field-grid" id="divider-options">
+              <label class="field-group"><span class="field-label">Fächer in Länge</span><input class="field-input" id="compartments-x" type="number" min="1" max="10" step="1" value="1"></label>
+              <label class="field-group"><span class="field-label">Fächer in Breite</span><input class="field-input" id="compartments-y" type="number" min="1" max="10" step="1" value="1"></label>
+              <label class="field-group"><span class="field-label">Fächerhöhe gesamt (mm)</span><input class="field-input" id="divider-height" type="number" min="0.1" max="1000" step="0.1" placeholder="Volle Innenhöhe"></label>
+            </div>
+            <p class="field-hint" id="divider-height-hint">Ab der Bodeninnenseite; leer = volle Innenhöhe. Eine Änderung setzt individuelle Wandhöhen zurück.</p>
+            <div id="cell-options">
+              <div class="divider"></div>
+              <label class="field-label" for="cell-select">Fach auswählen</label>
+              <select class="select-control" id="cell-select"><option value="">In der 3D-Vorschau anklicken …</option></select>
+              <p class="field-hint">Fachboden in der 3D-Vorschau anklicken (ggf. Draufsicht wählen) oder hier auswählen. Änderungen betreffen gemeinsame Reihen, Spalten und Trennwände; die Box bleibt gleich groß. Eine andere Fächeranzahl setzt individuelle Maße und Wandhöhen zurück.</p>
+              <div class="field-grid" id="cell-fields" hidden>
+                <label class="field-group"><span class="field-label">Länge innen (mm)</span><input class="field-input" id="cell-width" type="number" min="0.1" step="0.1"></label>
+                <label class="field-group"><span class="field-label">Breite innen (mm)</span><input class="field-input" id="cell-depth" type="number" min="0.1" step="0.1"></label>
+                <label class="field-group"><span class="field-label">Angrenzende Wandhöhe (mm)</span><input class="field-input" id="cell-height" type="number" min="0.1" step="0.1"></label>
+              </div>
+              <p class="field-hint" id="cell-height-info" hidden></p>
+            </div>
+            <div class="divider"></div>
+            <label class="field-label"><input id="lid-enabled" type="checkbox"> Steckdeckel erzeugen</label>
+            <div class="field-grid" id="lid-options" hidden>
+              <label class="field-group"><span class="field-label">Deckelstärke (mm)</span><input class="field-input" id="lid-thickness" type="number" min="0.5" max="20" step="0.1" value="2"></label>
+              <label class="field-group"><span class="field-label">Spiel je Seite (mm)</span><input class="field-input" id="lid-clearance" type="number" min="0" max="5" step="0.05" value="0.25"></label>
+              <label class="field-group"><span class="field-label">Einstecktiefe (mm)</span><input class="field-input" id="lid-insert-depth" type="number" min="0.5" max="20" step="0.1" value="3"></label>
+            </div>
+            <p class="field-hint">Der Deckel wird als eigene STL-Datei exportiert; die Vorschau zeigt die Box.</p>
+          </section>
+
+          <section class="panel editor-card">
+            <div class="panel-heading">
+              <div><h2>Gridfinity</h2><p>Rasterfüße und separate Grundplatte für rechteckige Boxen.</p></div>
+            </div>
+            <label class="field-label"><input id="gridfinity-enabled" type="checkbox"> Gridfinity-Füße erzeugen</label>
+            <div id="gridfinity-settings" hidden>
+              <div class="field-grid">
+                <label class="field-group"><span class="field-label">Rastergröße</span>
+                  <select class="select-control" id="gridfinity-pitch">
+                    <option value="42">42 mm (Standard)</option>
+                    <option value="21">21 mm (eigene Platte)</option>
+                    <option value="14">14 mm (eigene Platte)</option>
+                  </select>
+                </label>
+                <label class="field-group"><span class="field-label">Füße in Länge</span><input class="field-input" id="gridfinity-feet-x" type="number" min="1" max="64" step="1" value="2"></label>
+                <label class="field-group"><span class="field-label">Füße in Breite</span><input class="field-input" id="gridfinity-feet-y" type="number" min="1" max="64" step="1" value="1"></label>
+                <label class="field-group"><span class="field-label">Platte: Spalten</span><input class="field-input" id="gridfinity-columns" type="number" min="1" max="64" step="1" value="2"></label>
+                <label class="field-group"><span class="field-label">Platte: Reihen</span><input class="field-input" id="gridfinity-rows" type="number" min="1" max="64" step="1" value="2"></label>
+                <label class="field-group"><span class="field-label">Box: Spalte ab 0</span><input class="field-input" id="gridfinity-column" type="number" min="0" max="63" step="1" value="0"></label>
+                <label class="field-group"><span class="field-label">Box: Reihe ab 0</span><input class="field-input" id="gridfinity-row" type="number" min="0" max="63" step="1" value="0"></label>
+              </div>
+              <button class="add-button" id="gridfinity-move" type="button" aria-pressed="false">Grundplatte in 3D verschieben</button>
+              <p class="field-hint">Aktivieren und in der Vorschau ziehen: Die Platte rastet unter der Box ein. Alternativ Spalte und Reihe eingeben. Die Platte ist nur Vorschau und wird separat exportiert.</p>
+              <p class="field-hint">Wähle die Fußanzahl für Länge und Breite, z. B. 3 × 2 (höchstens 64 Füße insgesamt). Die Box passt sich an; beim Wechsel der Rastergröße bleibt die Fußanzahl erhalten. Höhe unter „Form &amp; Maße“, Fächer unter „Fächer &amp; Deckel“ einstellen.</p>
+              <p class="field-hint">Manuell eingegebene Boxmaße werden nach dem Bestätigen aufgerundet. Füße erhöhen die Gesamthöhe um 4,75 mm. 21 und 14 mm brauchen die jeweils hier erzeugte Platte.</p>
+            </div>
+          </section>
+
+          <section class="panel editor-card" id="skadis-options">
+            <div class="panel-heading">
+              <div><h2>Skådis-Aufhängung</h2><p>Für die Rückseite an der Lochwand.</p></div>
+            </div>
+            <label class="field-label"><input id="skadis-enabled" type="checkbox"> Haken an der Rückseite erzeugen</label>
+            <div id="skadis-settings" hidden>
+              <div class="field-grid">
+                <label class="field-group">
+                  <span class="field-label">Lochwandstärke (mm)</span>
+                  <input class="field-input" id="skadis-board-thickness" type="number" min="4" max="7" step="0.1" value="5.5">
+                </label>
+                <label class="field-group">
+                  <span class="field-label">Raster horizontal (mm)</span>
+                  <input class="field-input" id="skadis-offset-x" type="number" min="-1000" max="1000" step="0.1" value="0">
+                </label>
+                <label class="field-group">
+                  <span class="field-label">Raster vertikal (mm)</span>
+                  <input class="field-input" id="skadis-offset-z" type="number" min="-1000" max="1000" step="0.1" value="0">
+                </label>
+              </div>
+              <button class="add-button skadis-move" id="skadis-move" type="button" aria-pressed="false">Raster in 3D verschieben</button>
+              <p class="field-hint">Zum Verschieben den Knopf aktivieren und das Raster in der Rückansicht ziehen. Die ausgewählten Haken bewegen sich mit.</p>
+              <p class="field-hint">Klicke Löcher auf der Lochwand in der 3D-Vorschau oder in der Rückansicht unten an. Erneut klicken entfernt einen Haken.</p>
+              <div class="skadis-picker-heading">
+                <strong id="skadis-count" aria-live="polite">0 Haken</strong>
+                <button class="add-button" id="skadis-clear" type="button">Alle entfernen</button>
+              </div>
+              <div class="skadis-picker" id="skadis-picker" role="group" aria-label="Skådis-Lochwand an der Rückseite"></div>
+              <div id="skadis-invalid" class="skadis-invalid" aria-live="polite"></div>
+              <p class="field-hint">Rückansicht · Helle Löcher sind frei, grüne Löcher ausgewählt. Runde Formen erhalten Schlitze für separate Haken.</p>
+              <p class="field-hint" id="round-skadis-hint" hidden>Beim Rundbehälter trägt eine Stütze den Boden; die Nase greift oben hinter die Wand. Nur eine Halterung je Rasterspalte.</p>
+            </div>
+            <p class="field-hint">Die Lochwand dient nur als Vorschau. Die Haken ragen über das Außenmaß hinaus. Passung und Belastbarkeit mit Testdruck prüfen; Stützmaterial kann nötig sein.</p>
+          </section>
+
+          <section class="panel editor-card feature-card" id="container-cuts">
+            <div class="panel-heading">
+              <div><h2>Öffnungen</h2><p>Durchgehende Ausschnitte in Boden und Wänden.</p></div>
+              <span class="step" id="cut-count">0</span>
+            </div>
+            <div class="feature-actions">
+              <button class="add-button" type="button" data-add-cut="circle"><span aria-hidden="true">+</span> Rundes Loch</button>
+              <button class="add-button" type="button" data-add-cut="rectangle"><span aria-hidden="true">+</span> Rechteck</button>
+            </div>
+            <div id="cut-list" class="feature-list"></div>
+            <p class="feature-hint">Boden: X/Y ab Mitte. Wände: X oder Y ab Mitte und Z ab Unterkante. Rundbehälter: vorerst nur Boden.</p>
+          </section>
+
+          <section class="panel editor-card feature-card" id="solid-features">
+            <div class="panel-heading">
+              <div>
+                <h2>Geometrien & Bearbeitungen</h2>
+                <p>Füge Material hinzu oder schneide es heraus.</p>
+              </div>
+              <span class="step" id="feature-count">0</span>
+            </div>
+            <div class="feature-actions">
+              <button class="add-button" type="button" data-add-feature="hole"><span aria-hidden="true">+</span> Bohrung</button>
+              <button class="add-button" type="button" data-add-feature="pocket"><span aria-hidden="true">+</span> Tasche</button>
+              <button class="add-button" type="button" data-add-feature="bossCylinder"><span aria-hidden="true">+</span> Zylinder</button>
+              <button class="add-button" type="button" data-add-feature="bossBox"><span aria-hidden="true">+</span> Quader</button>
+            </div>
+            <div id="feature-list" class="feature-list"></div>
+            <p class="feature-hint">Position X/Y werden von der Körpermitte gemessen. Bohrungen und Taschen starten oben.</p>
+            <div class="feature-legend">
+              <span><i class="legend-dot cut"></i>Ausschnitt</span>
+              <span><i class="legend-dot add"></i>Zusatzkörper</span>
+            </div>
+          </section>
+
+          <button class="export-button" id="export-stl" type="button" disabled>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 13v3.5h13V13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Körper als STL herunterladen
+          </button>
+          <button class="export-button" id="export-lid" type="button" disabled hidden>Deckel als STL herunterladen</button>
+          <button class="export-button" id="export-gridfinity" type="button" disabled hidden>Gridfinity-Grundplatte als STL herunterladen</button>
+          <div id="skadis-export-options" hidden>
+            <label class="field-label" for="skadis-export-select">Separater Haken</label>
+            <select class="select-control" id="skadis-export-select"></select>
+            <button class="export-button" id="export-skadis-hook" type="button" disabled>Ausgewählten Haken als STL herunterladen</button>
+            <p class="field-hint" id="skadis-export-hint"></p>
+          </div>
+          <p class="export-hint">Das Modell wird lokal berechnet und als STL gespeichert.</p>
+        </aside>
+
+        <section class="panel viewport-panel" aria-label="3D-Vorschau">
+          <div class="viewport-heading">
+            <div>
+              <h2>3D-Vorschau</h2>
+              <p>Mit der Maus drehen · Scrollen zum Zoomen</p>
+            </div>
+            <div class="view-actions">
+              <button class="icon-button" id="back-view" type="button" title="Skådis-Rückansicht" aria-label="Skådis-Rückansicht" hidden>▦</button>
+              <button class="icon-button" id="top-view" type="button" title="Draufsicht" aria-label="Draufsicht">↑</button>
+              <button class="icon-button" id="reset-view" type="button" title="Ansicht zurücksetzen" aria-label="Ansicht zurücksetzen">↗</button>
+            </div>
+          </div>
+          <div class="viewport-wrap" id="viewport-wrap">
+            <canvas id="viewport" aria-label="Drehbare 3D-Modellvorschau"></canvas>
+            <div class="viewport-placeholder" id="viewport-placeholder">
+              <div class="loader"></div>
+              <strong>3D-Kern wird geladen</strong>
+              <span>Der CAD-Kern startet beim ersten Öffnen.</span>
+            </div>
+            <div class="axis-corner" aria-hidden="true"><span class="axis-z">Z</span><span class="axis-y">Y</span><span class="axis-x">X</span></div>
+            <div class="unit-chip">mm</div>
+          </div>
+          <div class="viewport-footer">
+            <div class="model-status" id="model-status" role="status" aria-live="polite">Initialisiere lokale 3D-Engine …</div>
+            <div class="model-info" id="model-info">—</div>
+          </div>
+        </section>
+      </section>
+      <footer class="page-footer"><span>Deine Maße bleiben lokal auf diesem Rechner.</span><span>Vor dem Druck: Wandstärke und Passungen im Slicer kontrollieren.</span></footer>
+    </main>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

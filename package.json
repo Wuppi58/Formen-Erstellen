@@ -1,0 +1,19 @@
+{
+  "name": "formen-erstellen",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "test": "node --test",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "opencascade.js": "2.0.0-beta.b5ff984",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.8"
+  }
+}
