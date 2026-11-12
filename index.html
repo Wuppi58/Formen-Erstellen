@@ -4,7 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f5f6f2">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%232e7158' d='m12 2 10 6v8l-10 6L2 16V8z'/%3E%3C/svg%3E">
+    <meta name="description" content="Erstelle Formen nach Maß und verfolge deine Entwürfe direkt in der 3D-Vorschau.">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/svg+xml" href="./icons/app-icon.svg">
     <title>Formen – Dein Modell, live in 3D</title>
     <style>
       :root {
@@ -435,6 +437,10 @@
       });
 
       drawModel(defaults);
+
+      if ("serviceWorker" in navigator && window.isSecureContext) {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      }
     </script>
   </body>
 </html>
