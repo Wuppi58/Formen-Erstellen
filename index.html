@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f5f6f2">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%232e7158' d='m12 2 10 6v8l-10 6L2 16V8z'/%3E%3C/svg%3E">
     <title>Formen – Dein Modell, live in 3D</title>
     <style>
       :root {
@@ -245,8 +246,8 @@
                 <input id="length" name="length" type="number" min="1" max="500" step="0.1" value="20" inputmode="decimal" aria-describedby="length-error">
                 <span class="unit" aria-hidden="true">cm</span>
               </div>
-              <input id="length-range" type="range" min="1" max="200" step="0.1" value="20" aria-label="Länge mit Schieberegler einstellen" aria-controls="length">
-              <div class="range-ends" aria-hidden="true"><span>1 cm</span><span>200 cm</span></div>
+              <input id="length-range" type="range" min="1" max="500" step="0.1" value="20" aria-label="Länge mit Schieberegler einstellen" aria-controls="length">
+              <div class="range-ends" aria-hidden="true"><span>1 cm</span><span>500 cm</span></div>
               <p class="error" id="length-error"></p>
             </div>
 
@@ -258,8 +259,8 @@
                 <input id="height" name="height" type="number" min="1" max="500" step="0.1" value="12" inputmode="decimal" aria-describedby="height-error">
                 <span class="unit" aria-hidden="true">cm</span>
               </div>
-              <input id="height-range" type="range" min="1" max="200" step="0.1" value="12" aria-label="Höhe mit Schieberegler einstellen" aria-controls="height">
-              <div class="range-ends" aria-hidden="true"><span>1 cm</span><span>200 cm</span></div>
+              <input id="height-range" type="range" min="1" max="500" step="0.1" value="12" aria-label="Höhe mit Schieberegler einstellen" aria-controls="height">
+              <div class="range-ends" aria-hidden="true"><span>1 cm</span><span>500 cm</span></div>
               <p class="error" id="height-error"></p>
             </div>
 
@@ -271,8 +272,8 @@
                 <input id="depth" name="depth" type="number" min="1" max="500" step="0.1" value="10" inputmode="decimal" aria-describedby="depth-error">
                 <span class="unit" aria-hidden="true">cm</span>
               </div>
-              <input id="depth-range" type="range" min="1" max="200" step="0.1" value="10" aria-label="Tiefe mit Schieberegler einstellen" aria-controls="depth">
-              <div class="range-ends" aria-hidden="true"><span>1 cm</span><span>200 cm</span></div>
+              <input id="depth-range" type="range" min="1" max="500" step="0.1" value="10" aria-label="Tiefe mit Schieberegler einstellen" aria-controls="depth">
+              <div class="range-ends" aria-hidden="true"><span>1 cm</span><span>500 cm</span></div>
               <p class="error" id="depth-error"></p>
             </div>
 
@@ -366,7 +367,7 @@
         setPoints("face-front", [bottom[0], bottom[1], top[1], top[0]]);
         setPoints("face-top", top);
         document.getElementById("edges").setAttribute("d",
-          `M${asPoints(bottom)} Z M${asPoints(top)} Z M${point(...bottom[0])} L${point(...top[0])} M${point(...bottom[1])} L${point(...top[1])} M${point(...bottom[3])} L${point(...top[3])}`);
+          `M${point(...bottom[0])} L${point(...bottom[1])} M${point(...bottom[0])} L${point(...bottom[3])} M${asPoints(top)} Z M${point(...bottom[0])} L${point(...top[0])} M${point(...bottom[1])} L${point(...top[1])} M${point(...bottom[3])} L${point(...top[3])}`);
         document.getElementById("measure-lines").setAttribute("d",
           `M${point(...bottom[0])} L${point(...bottom[1])} M${point(...bottom[0])} L${point(...top[0])} M${point(...bottom[0])} L${point(...bottom[3])}`);
 
@@ -397,7 +398,7 @@
           `Vorschau aktualisiert: ${length} mal ${height} mal ${depth} Zentimeter.`;
       }
 
-      function readValues(changedField) {
+      function readValues() {
         const values = {};
         let valid = true;
 
@@ -413,7 +414,6 @@
           } else {
             values[key] = value;
             rangeInputs[key].value = String(Math.min(value, Number(rangeInputs[key].max)));
-            if (key === changedField) rangeInputs[key].value = String(Math.min(value, Number(rangeInputs[key].max)));
           }
         }
 
