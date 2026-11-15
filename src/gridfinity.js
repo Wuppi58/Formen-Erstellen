@@ -1,5 +1,6 @@
 export const GRIDFINITY_PITCHES = [42, 21, 14];
 export const GRIDFINITY_FOOT_HEIGHT = 4.75;
+export const GRIDFINITY_STACKING_LIP_HEIGHT = 3.8;
 export const GRIDFINITY_MAX_CELLS = 64;
 
 export function snapGridfinityDimension(dimension, pitch) {
@@ -65,6 +66,31 @@ export function gridfinitySocketProfile(pitch) {
     { z: 2.85, width: pitch - 4.3, radius: 1.85 },
     { z: 5, width: pitch, radius: 4 },
     { z: 5.02, width: pitch + 0.04, radius: 4.02 }
+  ];
+}
+
+export function gridfinityStackingLipProfile(body, pitch, columns, rows) {
+  if (body.shape !== "container" || !GRIDFINITY_PITCHES.includes(pitch)
+    || ![columns, rows].every((count) => Number.isInteger(count) && count >= 1)) {
+    throw new Error("Für den Gridfinity-Stapelrand werden eine rechteckige Box und gültige Fußzahlen benötigt.");
+  }
+  const width = body.width - 2 * body.wall;
+  const depth = body.depth - 2 * body.wall;
+  const footEnvelopeWidth = columns * pitch - 6.4;
+  const footEnvelopeDepth = rows * pitch - 6.4;
+  if (width < footEnvelopeWidth + 0.2 || depth < footEnvelopeDepth + 0.2) {
+    throw new Error("Die Wand ist für den Gridfinity-Stapelrand zu dick. Für den Fußsitz die Wandstärke verringern.");
+  }
+  const topWidth = Math.min(body.width - 0.2, Math.max(width + 0.2, body.width - 1.2));
+  const topDepth = Math.min(body.depth - 0.2, Math.max(depth + 0.2, body.depth - 1.2));
+  const shoulderWidth = Math.min(topWidth, width + 0.2);
+  const shoulderDepth = Math.min(topDepth, depth + 0.2);
+  return [
+    { z: -0.03, width, depth },
+    { z: 0.7, width: shoulderWidth, depth: shoulderDepth },
+    { z: 2.5, width: shoulderWidth, depth: shoulderDepth },
+    { z: GRIDFINITY_STACKING_LIP_HEIGHT, width: topWidth, depth: topDepth },
+    { z: GRIDFINITY_STACKING_LIP_HEIGHT + 0.03, width: topWidth, depth: topDepth }
   ];
 }
 

@@ -94,18 +94,17 @@
             <div class="field-grid" id="divider-options">
               <label class="field-group"><span class="field-label">Fächer in Länge</span><input class="field-input" id="compartments-x" type="number" min="1" max="10" step="1" value="1"></label>
               <label class="field-group"><span class="field-label">Fächer in Breite</span><input class="field-input" id="compartments-y" type="number" min="1" max="10" step="1" value="1"></label>
-              <label class="field-group"><span class="field-label">Fächerhöhe gesamt (mm)</span><input class="field-input" id="divider-height" type="number" min="0.1" max="1000" step="0.1" placeholder="Volle Innenhöhe"></label>
+              <label class="field-group"><span class="field-label">Standardhöhe der Trennwände (mm)</span><input class="field-input" id="divider-height" type="number" min="0.1" max="1000" step="0.1" placeholder="Volle Innenhöhe"></label>
             </div>
-            <p class="field-hint" id="divider-height-hint">Ab der Bodeninnenseite; leer = volle Innenhöhe. Eine Änderung setzt individuelle Wandhöhen zurück.</p>
+            <p class="field-hint" id="divider-height-hint">Leeres Feld = volle Innenhöhe. Ziehe orange Markierungen an den Trennwänden in der Schräg- oder Seitenansicht senkrecht hoch oder runter. Den mm-Wert neben dem Griff kannst du nach dem Loslassen direkt eingeben. Skådis-Haken bleiben unverändert.</p>
             <div id="cell-options">
               <div class="divider"></div>
-              <label class="field-label" for="cell-select">Fach auswählen</label>
+              <label class="field-label" for="cell-select">Fach in der 3D-Vorschau anklicken</label>
               <select class="select-control" id="cell-select"><option value="">In der 3D-Vorschau anklicken …</option></select>
-              <p class="field-hint">Fachboden in der 3D-Vorschau anklicken (ggf. Draufsicht wählen) oder hier auswählen. Änderungen betreffen gemeinsame Reihen, Spalten und Trennwände; die Box bleibt gleich groß. Eine andere Fächeranzahl setzt individuelle Maße und Wandhöhen zurück.</p>
               <div class="field-grid" id="cell-fields" hidden>
                 <label class="field-group"><span class="field-label">Länge innen (mm)</span><input class="field-input" id="cell-width" type="number" min="0.1" step="0.1"></label>
                 <label class="field-group"><span class="field-label">Breite innen (mm)</span><input class="field-input" id="cell-depth" type="number" min="0.1" step="0.1"></label>
-                <label class="field-group"><span class="field-label">Angrenzende Wandhöhe (mm)</span><input class="field-input" id="cell-height" type="number" min="0.1" step="0.1"></label>
+                <label class="field-group"><span class="field-label">Angrenzende Trennwandhöhe (mm)</span><input class="field-input" id="cell-height" type="number" min="0.1" step="0.1"></label>
               </div>
               <p class="field-hint" id="cell-height-info" hidden></p>
             </div>
@@ -121,9 +120,9 @@
 
           <section class="panel editor-card">
             <div class="panel-heading">
-              <div><h2>Gridfinity</h2><p>Rasterfüße und separate Grundplatte für rechteckige Boxen.</p></div>
+              <div><h2>Gridfinity-Füße</h2><p>Fußraster wählen; die Box-Grundfläche passt sich an.</p></div>
             </div>
-            <label class="field-label"><input id="gridfinity-enabled" type="checkbox"> Gridfinity-Füße erzeugen</label>
+            <label class="field-label"><input id="gridfinity-enabled" type="checkbox"> Füße unter der Box erzeugen</label>
             <div id="gridfinity-settings" hidden>
               <div class="field-grid">
                 <label class="field-group"><span class="field-label">Rastergröße</span>
@@ -133,17 +132,50 @@
                     <option value="14">14 mm (eigene Platte)</option>
                   </select>
                 </label>
-                <label class="field-group"><span class="field-label">Füße in Länge</span><input class="field-input" id="gridfinity-feet-x" type="number" min="1" max="64" step="1" value="2"></label>
-                <label class="field-group"><span class="field-label">Füße in Breite</span><input class="field-input" id="gridfinity-feet-y" type="number" min="1" max="64" step="1" value="1"></label>
-                <label class="field-group"><span class="field-label">Platte: Spalten</span><input class="field-input" id="gridfinity-columns" type="number" min="1" max="64" step="1" value="2"></label>
-                <label class="field-group"><span class="field-label">Platte: Reihen</span><input class="field-input" id="gridfinity-rows" type="number" min="1" max="64" step="1" value="2"></label>
-                <label class="field-group"><span class="field-label">Box: Spalte ab 0</span><input class="field-input" id="gridfinity-column" type="number" min="0" max="63" step="1" value="0"></label>
-                <label class="field-group"><span class="field-label">Box: Reihe ab 0</span><input class="field-input" id="gridfinity-row" type="number" min="0" max="63" step="1" value="0"></label>
               </div>
-              <button class="add-button" id="gridfinity-move" type="button" aria-pressed="false">Grundplatte in 3D verschieben</button>
-              <p class="field-hint">Aktivieren und in der Vorschau ziehen: Die Platte rastet unter der Box ein. Alternativ Spalte und Reihe eingeben. Die Platte ist nur Vorschau und wird separat exportiert.</p>
-              <p class="field-hint">Wähle die Fußanzahl für Länge und Breite, z. B. 3 × 2 (höchstens 64 Füße insgesamt). Die Box passt sich an; beim Wechsel der Rastergröße bleibt die Fußanzahl erhalten. Höhe unter „Form &amp; Maße“, Fächer unter „Fächer &amp; Deckel“ einstellen.</p>
-              <p class="field-hint">Manuell eingegebene Boxmaße werden nach dem Bestätigen aufgerundet. Füße erhöhen die Gesamthöhe um 4,75 mm. 21 und 14 mm brauchen die jeweils hier erzeugte Platte.</p>
+              <div class="foot-count-picker">
+                <label class="field-label" for="gridfinity-feet-x">Füße (Länge × Breite)</label>
+                <div class="foot-count-fields">
+                  <input class="field-input" id="gridfinity-feet-x" type="number" min="1" max="64" step="1" value="2" aria-label="Füße in Länge">
+                  <span aria-hidden="true">×</span>
+                  <input class="field-input" id="gridfinity-feet-y" type="number" min="1" max="64" step="1" value="1" aria-label="Füße in Breite">
+                </div>
+                <p class="field-hint">Zum Beispiel 3 × 1, 2 × 2 oder 4 × 2. Die Box passt ihre Länge und Breite automatisch an.</p>
+              </div>
+              <label class="field-group">
+                <span class="field-label">Boxhöhe (mm)</span>
+                <input class="field-input" id="gridfinity-height" type="number" min="0.1" max="1000" step="0.1" value="40" aria-label="Gridfinity-Boxhöhe in Millimetern">
+              </label>
+              <p class="field-hint">Die Boxhöhe wird auch unter „Form &amp; Maße“ synchron angezeigt. Fächer und Trennwandhöhen bearbeitest du unter „Fächer &amp; Deckel“.</p>
+              <label class="field-label"><input id="gridfinity-grip-label" type="checkbox"> Griffmulde und Beschriftungsfläche</label>
+              <div id="gridfinity-label-settings" hidden>
+                <label class="field-group">
+                  <span class="field-label">Drucktext (optional; leer = Fläche für Etikett)</span>
+                  <input class="field-input" id="gridfinity-label-text" type="text" maxlength="12" placeholder="z. B. M3">
+                </label>
+                <label class="field-group">
+                  <span class="field-label">Textdarstellung</span>
+                  <select class="select-control" id="gridfinity-label-mode">
+                    <option value="raised">Erhaben</option>
+                    <option value="engraved">Vertieft</option>
+                  </select>
+                </label>
+                <p class="field-hint">Klicke in der 3D-Vorschau die gewünschte Außenwand an. Mulde und Beschriftungsfläche reichen bis an die angrenzenden Seitenwände; diese bleiben geschlossen. Dazu kommt ein 3,8 mm hoher formschlüssiger Stapelrand für die Gridfinity-Füße.</p>
+                <p class="field-hint" id="gridfinity-label-wall" aria-live="polite">Ausgewählte Wand: Vorne</p>
+                <p class="field-hint">Leer lassen für ein Etikett; Drucktext unterstützt A–Z, 0–9 und + - . /.</p>
+              </div>
+              <details class="advanced-options">
+                <summary>Grundplatte anpassen (optional)</summary>
+                <div class="field-grid">
+                  <label class="field-group"><span class="field-label">Spalten</span><input class="field-input" id="gridfinity-columns" type="number" min="1" max="64" step="1" value="2"></label>
+                  <label class="field-group"><span class="field-label">Reihen</span><input class="field-input" id="gridfinity-rows" type="number" min="1" max="64" step="1" value="2"></label>
+                  <label class="field-group"><span class="field-label">Box auf Spalte</span><input class="field-input" id="gridfinity-column" type="number" min="0" max="63" step="1" value="0"></label>
+                  <label class="field-group"><span class="field-label">Box auf Reihe</span><input class="field-input" id="gridfinity-row" type="number" min="0" max="63" step="1" value="0"></label>
+                </div>
+                <button class="add-button" id="gridfinity-move" type="button" aria-pressed="false">Grundplatte in 3D verschieben</button>
+                <p class="field-hint">Die Platte ist nur Vorschau und wird als eigene STL heruntergeladen. Aktivieren und in der Vorschau ziehen, oder Spalte und Reihe eingeben.</p>
+              </details>
+              <p class="field-hint">Die Füße erhöhen die Gesamthöhe um 4,75 mm. 21 und 14 mm benötigen die jeweils hier erzeugte Grundplatte.</p>
             </div>
           </section>
 
@@ -254,6 +286,11 @@
               <span>Der CAD-Kern startet beim ersten Öffnen.</span>
             </div>
             <div class="axis-corner" aria-hidden="true"><span class="axis-z">Z</span><span class="axis-y">Y</span><span class="axis-x">X</span></div>
+            <label class="divider-height-editor" id="divider-height-editor" hidden>
+              <span>Trennwand</span>
+              <input id="divider-height-value" type="number" min="0.1" step="0.1" aria-label="Trennwandhöhe in Millimetern">
+              <span>mm</span>
+            </label>
             <div class="unit-chip">mm</div>
           </div>
           <div class="viewport-footer">

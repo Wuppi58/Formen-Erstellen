@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getCellDividerKeys, getDividerHeight, getDividerLayout, getLidDividerNotchDepth, resizeDividerCell } from "../src/container-dividers.js";
+import { clampDividerHeight, getCellDividerKeys, getDividerHeight, getDividerLayout, getLidDividerNotchDepth, resizeDividerCell } from "../src/container-dividers.js";
 
 const box = { height: 40, base: 2 };
 
@@ -12,6 +12,13 @@ test("divider height defaults to the current inside height and validates explici
   for (const height of [0, 0.05, -1, 38.1, NaN, Infinity]) {
     assert.throws(() => getDividerHeight(box, height), /Fächerhöhe/);
   }
+});
+
+test("dragged divider heights stay within the box's inside height", () => {
+  assert.equal(clampDividerHeight(box, -1), 0.1);
+  assert.equal(clampDividerHeight(box, 12.34), 12.34);
+  assert.equal(clampDividerHeight(box, 100), 38);
+  assert.throws(() => clampDividerHeight({ height: 2, base: 2 }, 1), /Fächerhöhe/);
 });
 
 test("lid notches accommodate only the overlap with the divider plus clearance", () => {
@@ -48,7 +55,8 @@ test("cell heights apply to shared wall segments and equal segments merge", () =
   assert.deepEqual(layout.segments.map((segment) => [segment.axis, segment.height]), [
     ["x", 10], ["x", 38], ["y", 10], ["y", 38]
   ]);
-  assert.equal(getDividerLayout(body, 2, 2, [0.5], [0.5], 38).segments.length, 2);
+  const merged = getDividerLayout(body, 2, 2, [0.5], [0.5], 38).segments;
+  assert.deepEqual(merged.map((segment) => segment.keys), [["x:1:0", "x:1:1"], ["y:1:0", "y:1:1"]]);
   assert.throws(() => getDividerLayout({ ...body, height: 11 }, 2, 2, [0.5], [0.5], 9, heights), /Fächerhöhe/);
 });
 

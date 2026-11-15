@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getGridfinityLayout, gridfinityBoxDimensions, gridfinityCount, gridfinityFootProfile, gridfinityPlateOffset, gridfinitySocketProfile, snapGridfinityDimension } from "../src/gridfinity.js";
+import { getGridfinityLayout, gridfinityBoxDimensions, gridfinityCount, gridfinityFootProfile, gridfinityPlateOffset, gridfinitySocketProfile, gridfinityStackingLipProfile, GRIDFINITY_STACKING_LIP_HEIGHT, snapGridfinityDimension } from "../src/gridfinity.js";
 
 test("Boxmaße werden für alle Rastergrößen nach oben ausgerichtet", () => {
   for (const pitch of [42, 21, 14]) {
@@ -74,4 +74,30 @@ test("Füße und Sockel haben bei allen drei Rastergrößen Spiel", () => {
       assert.ok(clearance >= 0.49 && clearance <= 0.71, `${pitch} mm, Höhe ${z}: ${clearance}`);
     }
   }
+});
+
+test("Stapelrandprofil hat 3,8 mm Höhe und ausreichend Platz für das Fußraster", () => {
+  const profile = gridfinityStackingLipProfile(
+    { shape: "container", width: 83.5, depth: 41.5, wall: 2 },
+    42,
+    2,
+    1
+  );
+  assert.equal(GRIDFINITY_STACKING_LIP_HEIGHT, 3.8);
+  assert.equal(profile[0].width, 79.5);
+  assert.equal(profile[0].depth, 37.5);
+  assert.equal(profile[3].width, 82.3);
+  assert.equal(profile[3].depth, 40.3);
+  assert.ok(profile[4].z > GRIDFINITY_STACKING_LIP_HEIGHT);
+  assert.equal(profile[4].width, profile[3].width);
+  assert.equal(profile[4].depth, profile[3].depth);
+});
+
+test("Stapelrandprofil lehnt Wände ab, die das Fußraster blockieren", () => {
+  assert.throws(() => gridfinityStackingLipProfile(
+    { shape: "container", width: 41.5, depth: 41.5, wall: 3 },
+    42,
+    1,
+    1
+  ), /Wand.*zu dick/);
 });

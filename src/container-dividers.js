@@ -7,6 +7,14 @@ export function getDividerHeight(body, requestedHeight) {
   return requestedHeight;
 }
 
+export function clampDividerHeight(body, requestedHeight) {
+  const maximum = body.height - body.base;
+  if (!Number.isFinite(requestedHeight) || !Number.isFinite(maximum) || maximum < 0.1) {
+    throw new Error("Die Fächerhöhe muss mindestens 0,1 mm betragen und in die Innenhöhe der Box passen.");
+  }
+  return Math.min(maximum, Math.max(0.1, requestedHeight));
+}
+
 export function getLidDividerNotchDepth(body, dividerHeight, insertDepth, clearance) {
   const gap = body.height - body.base - dividerHeight;
   return Math.max(0, Math.min(insertDepth, insertDepth - gap + clearance));
@@ -45,8 +53,9 @@ export function getDividerLayout(body, countX, countY, fractionsX, fractionsY, d
         if (previous && previous.axis === axis && previous.boundary === boundary
           && previous.height === height && previous.end === start) {
           previous.end = end;
+          previous.keys.push(key);
         } else {
-          segments.push({ axis, boundary, position: boundariesInAxis[boundary], start, end, height });
+          segments.push({ axis, boundary, position: boundariesInAxis[boundary], start, end, height, keys: [key] });
         }
       }
     }

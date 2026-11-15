@@ -58,6 +58,13 @@ h1 { margin: 0; font-size: clamp(29px, 3.5vw, 39px); letter-spacing: -.055em; li
 .field-group { min-width: 0; }
 .field-group .field-label { color: #5b6863; font-size: 11px; font-weight: 550; }
 .field-input { width: 100%; padding: 0 10px; font-size: 13px; font-weight: 600; }
+.foot-count-picker { margin-top: 13px; }
+.foot-count-fields { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 9px; }
+.foot-count-fields span { color: var(--muted); font-size: 14px; font-weight: 650; text-align: center; }
+.advanced-options { margin-top: 13px; border-top: 1px solid #edf0ee; }
+.advanced-options summary { padding: 11px 0 3px; color: #52615b; cursor: pointer; font-size: 11px; font-weight: 650; }
+.advanced-options .field-grid { margin-top: 10px; }
+.advanced-options .add-button { margin-top: 10px; }
 .input-with-unit { display: flex; align-items: center; padding: 0 10px; }
 .input-with-unit input { width: 100%; min-width: 0; border: 0; outline: 0; color: inherit; background: transparent; font-size: 13px; font-weight: 600; }
 .input-with-unit span { color: #87928e; font-size: 11px; }
@@ -121,6 +128,10 @@ h1 { margin: 0; font-size: clamp(29px, 3.5vw, 39px); letter-spacing: -.055em; li
 .viewport-placeholder[hidden] { display: none; }
 .loader { width: 24px; height: 24px; margin-bottom: 3px; border: 2px solid #dce8e1; border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.divider-height-editor { position: absolute; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid #e68c2f; border-radius: 9px; color: #59401f; background: rgba(255,255,255,.96); box-shadow: 0 3px 12px rgba(39,54,48,.15); font-size: 10px; font-weight: 650; white-space: nowrap; }
+.divider-height-editor[hidden] { display: none; }
+.divider-height-editor input { width: 66px; min-height: 30px; padding: 4px 5px; border: 1px solid #e2d3bf; border-radius: 6px; color: #273630; font: inherit; font-size: 12px; }
+.divider-height-editor input:focus { outline: 2px solid rgba(230,140,47,.3); border-color: #e68c2f; }
 .axis-corner { position: absolute; left: 16px; bottom: 17px; width: 44px; height: 44px; pointer-events: none; }
 .axis-corner span { position: absolute; font-size: 9px; font-weight: 750; }
 .axis-z { left: 20px; top: 0; color: #53936f; }

@@ -5,11 +5,12 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import openCascadeModule from "opencascade.js/dist/opencascade.full.js";
 import openCascadeWasmUrl from "opencascade.js/dist/opencascade.full.wasm?url";
 import { getCutSpec } from "./container-cuts.js";
-import { getCellDividerKeys, getDividerHeight, getDividerLayout, getLidDividerNotchDepth, resizeDividerCell } from "./container-dividers.js";
+import { clampDividerHeight, getCellDividerKeys, getDividerHeight, getDividerLayout, getLidDividerNotchDepth, resizeDividerCell } from "./container-dividers.js";
 import { getSkadisGrid, getSkadisPlan, hasSkadisFeatureConflict } from "./skadis.js";
 import { getInsertSpec, getSkadisBoardOffset } from "./skadis-inserts.js";
 import { getBoxEdges, getRoundedCellOutline, getVerticalEdges, matchesBoxEdge, polygonArea, roundedCutFits, verticalRoundingFits } from "./box-edges.js";
-import { GRIDFINITY_FOOT_HEIGHT, getGridfinityLayout, gridfinityBoxDimensions, gridfinityCount, gridfinityFootProfile, gridfinityPlateOffset, gridfinitySocketProfile, snapGridfinityDimension } from "./gridfinity.js";
+import { GRIDFINITY_FOOT_HEIGHT, GRIDFINITY_STACKING_LIP_HEIGHT, getGridfinityLayout, gridfinityBoxDimensions, gridfinityCount, gridfinityFootProfile, gridfinityPlateOffset, gridfinitySocketProfile, gridfinityStackingLipProfile, snapGridfinityDimension } from "./gridfinity.js";
+import { getGridfinityLabelLayout, getGridfinityWallFrame } from "./gridfinity-label.js";
 
 const bodyShape = document.querySelector("#body-shape");
 const bodyFields = document.querySelector("#body-fields");
@@ -25,6 +26,8 @@ const modelInfo = document.querySelector("#model-info");
 const placeholder = document.querySelector("#viewport-placeholder");
 const canvas = document.querySelector("#viewport");
 const viewportWrap = document.querySelector("#viewport-wrap");
+const dividerHeightEditor = document.querySelector("#divider-height-editor");
+const dividerHeightValue = document.querySelector("#divider-height-value");
 const containerSettings = document.querySelector("#container-settings");
 const measureMode = document.querySelector("#measure-mode");
 const wallInput = document.querySelector("#wall-thickness");
@@ -70,9 +73,15 @@ const lidInsertDepth = document.querySelector("#lid-insert-depth");
 const exportLidButton = document.querySelector("#export-lid");
 const gridfinityEnabled = document.querySelector("#gridfinity-enabled");
 const gridfinitySettings = document.querySelector("#gridfinity-settings");
+const gridfinityGripLabel = document.querySelector("#gridfinity-grip-label");
+const gridfinityLabelSettings = document.querySelector("#gridfinity-label-settings");
+const gridfinityLabelWallHint = document.querySelector("#gridfinity-label-wall");
+const gridfinityLabelText = document.querySelector("#gridfinity-label-text");
+const gridfinityLabelMode = document.querySelector("#gridfinity-label-mode");
 const gridfinityPitch = document.querySelector("#gridfinity-pitch");
 const gridfinityFeetX = document.querySelector("#gridfinity-feet-x");
 const gridfinityFeetY = document.querySelector("#gridfinity-feet-y");
+const gridfinityHeight = document.querySelector("#gridfinity-height");
 const gridfinityColumns = document.querySelector("#gridfinity-columns");
 const gridfinityRows = document.querySelector("#gridfinity-rows");
 const gridfinityColumn = document.querySelector("#gridfinity-column");
@@ -80,6 +89,7 @@ const gridfinityRow = document.querySelector("#gridfinity-row");
 const gridfinityMove = document.querySelector("#gridfinity-move");
 const exportGridfinityButton = document.querySelector("#export-gridfinity");
 const shapeLabels = { container: "Box", roundContainer: "Runder Behälter", box: "Quader", cylinder: "Zylinder", sphere: "Kugel" };
+const gridfinityWallNames = { front: "Vorne (−Y)", back: "Hinten (+Y)", left: "Links (−X)", right: "Rechts (+X)" };
 const initialBody = { shape: "container", width: 60, depth: 40, height: 40 };
 
 let oc;
@@ -101,11 +111,15 @@ let skadisOverlay;
 let skadisPointerStart;
 let skadisDrag;
 let cellOverlay;
+let dividerHandleOverlay;
+let dividerDrag;
+let dividerEditorState;
 let edgeOverlay;
 let gridfinityOverlay;
 let gridfinityDrag;
 let gridfinityCountError = "";
 let gridfinityResizePending = false;
+let gridfinityGripWall = "front";
 let selectedCell;
 let cellInputErrors = {};
 let dividerState = { countX: 1, countY: 1, fractionsX: [], fractionsY: [], heights: {} };
@@ -126,6 +140,10 @@ function initializeOpenCascade() {
 function setStatus(message, kind = "") {
   modelStatus.textContent = message;
   modelStatus.className = `model-status${kind ? ` ${kind}` : ""}`;
+}
+
+function refreshGridfinityLabelWallHint() {
+  gridfinityLabelWallHint.textContent = `Ausgewählte Wand: ${gridfinityWallNames[gridfinityGripWall]}`;
 }
 
 function numberField(label, value, property, min = 0.1, step = 0.1) {
@@ -172,6 +190,35 @@ function renderBodyFields() {
       + bodyField("Breite", initialBody.depth, "depth")
       + bodyField("Höhe", initialBody.height, "height");
   }
+  syncGridfinityHeightFromBody();
+}
+
+function syncGridfinityHeightFromBody() {
+  const heightInput = bodyFields.querySelector('[data-body-prop="height"]');
+  if (!heightInput || heightInput.value === "") {
+    gridfinityHeight.value = "";
+    return;
+  }
+  const base = measureMode.value === "inside" ? Number(baseInput.value) : 0;
+  const outsideHeight = Number(heightInput.value) + (Number.isFinite(base) ? base : 0);
+  gridfinityHeight.value = Number.isFinite(outsideHeight) ? String(Number(outsideHeight.toFixed(8))) : "";
+}
+
+function updateBodyHeightFromGridfinity() {
+  const heightInput = bodyFields.querySelector('[data-body-prop="height"]');
+  if (!heightInput) return;
+  const outsideHeight = Number(gridfinityHeight.value);
+  if (gridfinityHeight.value === "" || !Number.isFinite(outsideHeight)) {
+    heightInput.value = "";
+    initialBody.height = 0;
+    scheduleUpdate();
+    return;
+  }
+  const base = measureMode.value === "inside" ? Number(baseInput.value) : 0;
+  const inputHeight = outsideHeight - (Number.isFinite(base) ? base : 0);
+  heightInput.value = String(Number(inputHeight.toFixed(8)));
+  initialBody.height = Number(heightInput.value);
+  scheduleUpdate();
 }
 
 function selectableEdges(body) {
@@ -517,7 +564,105 @@ function refreshCellControls(body, force = false) {
       : "Die Höhe gilt für alle angrenzenden inneren Wände, auch auf der Seite des Nachbarfachs.";
 }
 
+function clearDividerHandleOverlay() {
+  if (!dividerHandleOverlay) return;
+  scene.remove(dividerHandleOverlay);
+  dividerHandleOverlay.userData.geometry.dispose();
+  dividerHandleOverlay.userData.material.dispose();
+  dividerHandleOverlay = undefined;
+}
+
+function renderDividerHandles(body) {
+  clearDividerHandleOverlay();
+  if (!modelRoot || body.shape !== "container") {
+    hideDividerHeightEditor();
+    return;
+  }
+  const segments = readDividerLayout(body).segments;
+  if (!segments.length) {
+    hideDividerHeightEditor();
+    return;
+  }
+  const geometry = new THREE.SphereGeometry(2.2, 12, 8);
+  const material = new THREE.MeshBasicMaterial({ color: "#e68c2f" });
+  dividerHandleOverlay = new THREE.Group();
+  dividerHandleOverlay.userData.geometry = geometry;
+  dividerHandleOverlay.userData.material = material;
+  for (const segment of segments) {
+    const center = (segment.start + segment.end) / 2;
+    const x = segment.axis === "x" ? segment.position : center;
+    const z = segment.axis === "x" ? -center : -segment.position;
+    const handle = new THREE.Mesh(geometry, material);
+    handle.position.set(modelRoot.position.x + x,
+      modelRoot.position.y + body.base + segment.height + 2.2,
+      modelRoot.position.z + z);
+    handle.userData = { keys: segment.keys, height: segment.height };
+    dividerHandleOverlay.add(handle);
+  }
+  scene.add(dividerHandleOverlay);
+  if (dividerEditorState) {
+    const handle = dividerHandleOverlay.children.find((candidate) =>
+      candidate.userData.keys.length === dividerEditorState.keys.length
+      && candidate.userData.keys.every((key, index) => key === dividerEditorState.keys[index]));
+    if (!handle) {
+      hideDividerHeightEditor();
+    } else {
+      dividerEditorState.handle = handle;
+      dividerEditorState.body = body;
+      if (document.activeElement !== dividerHeightValue) {
+        dividerHeightValue.value = String(handle.userData.height);
+      }
+    }
+  }
+}
+
+function hideDividerHeightEditor() {
+  dividerEditorState = undefined;
+  dividerHeightEditor.hidden = true;
+}
+
+function showDividerHeightEditor(handle, body) {
+  dividerEditorState = { handle, body, keys: [...handle.userData.keys] };
+  dividerHeightValue.value = String(handle.userData.height);
+  dividerHeightEditor.hidden = false;
+  updateDividerHeightEditorPosition();
+}
+
+function updateDividerHeightEditorPosition() {
+  if (!dividerEditorState || dividerHeightEditor.hidden) return;
+  const point = dividerEditorState.handle.getWorldPosition(new THREE.Vector3()).project(camera);
+  const canvasRect = canvas.getBoundingClientRect();
+  const wrapRect = viewportWrap.getBoundingClientRect();
+  const anchorX = canvasRect.left - wrapRect.left + (point.x + 1) * canvasRect.width / 2;
+  const anchorY = canvasRect.top - wrapRect.top + (1 - point.y) * canvasRect.height / 2;
+  const editorWidth = dividerHeightEditor.offsetWidth;
+  const editorHeight = dividerHeightEditor.offsetHeight;
+  const placeRight = anchorX + editorWidth + 14 <= wrapRect.width;
+  const left = placeRight ? anchorX + 12 : anchorX - editorWidth - 12;
+  dividerHeightEditor.style.left = `${Math.max(8, Math.min(wrapRect.width - editorWidth - 8, left))}px`;
+  dividerHeightEditor.style.top = `${Math.max(8, Math.min(wrapRect.height - editorHeight - 8, anchorY - editorHeight / 2))}px`;
+}
+
+function editDividerHeightFromOverlay() {
+  if (!dividerEditorState) return;
+  try {
+    const height = getDividerHeight(dividerEditorState.body, dividerHeightValue.valueAsNumber);
+    dividerEditorState.keys.forEach((key) => { dividerState.heights[key] = height; });
+    dividerEditorState.handle.userData.height = height;
+    dividerEditorState.handle.position.y = modelRoot.position.y + dividerEditorState.body.base + height + 2.2;
+    dividerHeightValue.value = String(height);
+    refreshCellControls(dividerEditorState.body);
+    setStatus(`Trennwandhöhe: ${height.toFixed(1).replace(".", ",")} mm. Modell wird neu berechnet.`);
+    scheduleUpdate();
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    dividerHeightValue.value = String(dividerEditorState.handle.userData.height);
+    setStatus(error.message, "error");
+  }
+}
+
 function renderCellOverlay(body) {
+  clearDividerHandleOverlay();
   if (cellOverlay) {
     scene.remove(cellOverlay);
     cellOverlay.traverse((object) => {
@@ -528,7 +673,10 @@ function renderCellOverlay(body) {
     });
     cellOverlay = undefined;
   }
-  if (!modelRoot || body.shape !== "container") return;
+  if (!modelRoot || body.shape !== "container") {
+    hideDividerHeightEditor();
+    return;
+  }
   const layout = readDividerLayout(body);
   cellOverlay = new THREE.Group();
   layout.rows.forEach((row, rowIndex) => {
@@ -551,6 +699,7 @@ function renderCellOverlay(body) {
   });
   scene.add(cellOverlay);
   cellOverlay.updateMatrixWorld(true);
+  renderDividerHandles(body);
 }
 
 function selectCell(cell) {
@@ -824,6 +973,16 @@ function validateParameters(body) {
       if (!(error instanceof Error)) throw error;
       return error.message;
     }
+    if (gridfinityGripLabel.checked) {
+      try {
+        getGridfinityLabelLayout(body, gridfinityLabelText.value, radius, gridfinityGripWall);
+        const layout = readGridfinityLayout(body);
+        gridfinityStackingLipProfile(body, layout.pitch, layout.columns, layout.rows);
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        return error.message;
+      }
+    }
     if (radius > 0 && selection.some((id) => id.startsWith("bottom-"))) {
       return "Für Gridfinity bitte die unteren waagerechten Kanten abwählen oder den Radius auf 0 setzen.";
     }
@@ -1049,6 +1208,30 @@ function gridfinityProfileShape(x, y, sections) {
   }
 }
 
+function gridfinityRectangleProfileShape(sections) {
+  const loft = new oc.BRepOffsetAPI_ThruSections(true, true, 1e-6);
+  const range = progressRange();
+  try {
+    for (const section of sections) {
+      const { width, depth, z } = section;
+      const wire = polygonWire([
+        [-width / 2, -depth / 2, z],
+        [width / 2, -depth / 2, z],
+        [width / 2, depth / 2, z],
+        [-width / 2, depth / 2, z]
+      ]);
+      loft.AddWire(wire);
+      wire.delete();
+    }
+    loft.Build(range);
+    if (!loft.IsDone()) throw new Error("Gridfinity-Stapelprofil konnte nicht aufgebaut werden.");
+    return loft.Shape();
+  } finally {
+    range.delete();
+    loft.delete();
+  }
+}
+
 function addGridfinityFeet(shape, layout) {
   let result = shape;
   try {
@@ -1070,6 +1253,32 @@ function addGridfinityFeet(shape, layout) {
   } catch (error) {
     if (result !== shape) result.delete();
     throw error;
+  }
+}
+
+function addGridfinityStackingLip(shape, body, radius, verticalEdges, layout) {
+  const profile = gridfinityStackingLipProfile(body, layout.pitch, layout.columns, layout.rows)
+    .map((section) => ({ ...section, z: body.height + section.z }));
+  const outer = roundedBoxShape(
+    body.width,
+    body.depth,
+    GRIDFINITY_STACKING_LIP_HEIGHT + 0.04,
+    body.height - 0.02,
+    radius,
+    verticalEdges
+  );
+  const inner = gridfinityRectangleProfileShape(profile);
+  let lip;
+  try {
+    lip = booleanOperation(outer, inner, "cut");
+  } finally {
+    outer.delete();
+    inner.delete();
+  }
+  try {
+    return booleanOperation(shape, lip, "fuse");
+  } finally {
+    lip.delete();
   }
 }
 
@@ -1104,6 +1313,129 @@ function boxShape(x, y, z, width, depth, height) {
   builder.delete();
   origin.delete();
   return shape;
+}
+
+function polygonWire(points) {
+  const builder = new oc.BRepBuilderAPI_MakePolygon_1();
+  const vertices = [];
+  try {
+    for (const [x, y, z] of points) {
+      const point = new oc.gp_Pnt_3(x, y, z);
+      vertices.push(point);
+      builder.Add_1(point);
+    }
+    builder.Close();
+    if (!builder.IsDone()) throw new Error("Gridfinity-Profil konnte nicht erstellt werden.");
+    return builder.Wire();
+  } finally {
+    vertices.forEach((point) => point.delete());
+    builder.delete();
+  }
+}
+
+function polygonPrism(points, extrusion) {
+  const wire = polygonWire(points);
+  const faceBuilder = new oc.BRepBuilderAPI_MakeFace_15(wire, true);
+  const face = faceBuilder.Face();
+  const vector = new oc.gp_Vec_4(...extrusion);
+  const range = progressRange();
+  const prism = new oc.BRepPrimAPI_MakePrism_1(face, vector, false, true);
+  try {
+    if (!faceBuilder.IsDone()) throw new Error("Gridfinity-Profil konnte nicht erstellt werden.");
+    prism.Build(range);
+    if (!prism.IsDone()) throw new Error("Gridfinity-Profil konnte nicht aufgebaut werden.");
+    return prism.Shape();
+  } finally {
+    prism.delete();
+    range.delete();
+    vector.delete();
+    face.delete();
+    faceBuilder.delete();
+    wire.delete();
+  }
+}
+
+function rectangleWire(x, y, z, width, height) {
+  return polygonWire([
+    [x - width / 2, y, z - height / 2],
+    [x + width / 2, y, z - height / 2],
+    [x + width / 2, y, z + height / 2],
+    [x - width / 2, y, z + height / 2]
+  ]);
+}
+
+function gridfinityScoopTool(body, layout) {
+  const { scoop, wall, topZ } = layout;
+  const outerSkin = Math.min(body.wall - 0.3, Math.max(0.6, body.wall * 0.65));
+  const edgeCoord = wall.outerCoord + wall.inwardSign * outerSkin;
+  const scoopCoord = wall.innerCoord + wall.inwardSign * (scoop.depth + 0.02);
+  const minCoord = Math.min(edgeCoord, scoopCoord);
+  const maxCoord = Math.max(edgeCoord, scoopCoord);
+  const minZ = topZ - scoop.depth;
+  const start = -scoop.width / 2 - 0.02;
+  const cutter = wall.axis === "x"
+    ? cylinderShape(start, wall.innerCoord, topZ, scoop.radius, scoop.width + 0.04, [1, 0, 0])
+    : cylinderShape(wall.innerCoord, start, topZ, scoop.radius, scoop.width + 0.04, [0, 1, 0]);
+  const clip = wall.axis === "x"
+    ? boxShape(0, (minCoord + maxCoord) / 2, minZ, scoop.width + 0.04, maxCoord - minCoord, scoop.depth + 0.04)
+    : boxShape((minCoord + maxCoord) / 2, 0, minZ, maxCoord - minCoord, scoop.width + 0.04, scoop.depth + 0.04);
+  try {
+    return booleanOperation(cutter, clip, "common");
+  } finally {
+    clip.delete();
+    cutter.delete();
+  }
+}
+
+function gridfinityLabelSupportTool(layout) {
+  const { panel, wall, topZ } = layout;
+  const x = -panel.width / 2 - 0.02;
+  const point = (longCoord, normalCoord, z) => wall.axis === "x"
+    ? [longCoord, normalCoord, z]
+    : [normalCoord, longCoord, z];
+  const wallEdge = wall.innerCoord - wall.inwardSign * 0.2;
+  const extrusion = wall.axis === "x" ? [panel.width + 0.04, 0, 0] : [0, panel.width + 0.04, 0];
+  return polygonPrism([
+    point(x, wallEdge, topZ - panel.height),
+    point(x, wallEdge, topZ),
+    point(x, wall.innerCoord + wall.inwardSign * panel.height, topZ)
+  ], extrusion);
+}
+
+function gridfinityLabelPanelTool(layout) {
+  const { panel, wall } = layout;
+  const normalCoord = panel.centerCoord;
+  const x = wall.axis === "x" ? 0 : normalCoord;
+  const y = wall.axis === "x" ? normalCoord : 0;
+  const width = wall.axis === "x" ? panel.innerWidth : panel.innerHeight;
+  const depth = wall.axis === "x" ? panel.innerHeight : panel.innerWidth;
+  return boxShape(x, y, panel.surfaceZ - panel.depth, width, depth, panel.depth + 0.02);
+}
+
+function gridfinityLabelTextRuns(body, layout, mode) {
+  if (!layout.text) return [];
+  const { panel, text, wall } = layout;
+  const panelFloorZ = panel.surfaceZ - panel.depth;
+  const left = -text.width / 2;
+  const raised = mode === "raised";
+  const pixelDepth = raised
+    ? Math.min(0.45, Math.max(0.15, panel.depth - 0.1))
+    : Math.min(0.35, body.wall - panel.depth - 0.1);
+  if (pixelDepth <= 0) throw new Error("Die Wand ist für den gewählten Drucktext zu dünn.");
+  return text.runs.map((run) => {
+    const width = (run.length - 1) * text.spacing + text.pixelSize;
+    const longCoord = left + run.column * text.spacing + width / 2;
+    const normalCoord = panel.centerCoord + wall.inwardSign
+      * (text.height / 2 - run.row * text.spacing - text.pixelSize / 2);
+    return {
+      x: wall.axis === "x" ? longCoord : normalCoord,
+      y: wall.axis === "x" ? normalCoord : longCoord,
+      z: raised ? panelFloorZ - 0.02 : panelFloorZ - pixelDepth,
+      width: wall.axis === "x" ? width : text.pixelSize,
+      depth: wall.axis === "x" ? text.pixelSize : width,
+      height: pixelDepth + 0.02
+    };
+  });
 }
 
 function coneShape(x, y, z, bottomRadius, topRadius, height) {
@@ -1506,10 +1838,64 @@ function buildModel(parameters) {
           }
         }
       }
+      if (gridfinityEnabled.checked && gridfinityGripLabel.checked) {
+        const labelLayout = getGridfinityLabelLayout(
+          body,
+          gridfinityLabelText.value,
+          parameters.radius,
+          gridfinityGripWall
+        );
+        const scoop = gridfinityScoopTool(body, labelLayout);
+        try {
+          const next = booleanOperation(shape, scoop, "cut");
+          shape.delete();
+          shape = next;
+        } finally {
+          scoop.delete();
+        }
+        const labelSupport = gridfinityLabelSupportTool(labelLayout);
+        try {
+          const next = booleanOperation(shape, labelSupport, "fuse");
+          shape.delete();
+          shape = next;
+        } finally {
+          labelSupport.delete();
+        }
+        const panel = gridfinityLabelPanelTool(labelLayout);
+        try {
+          const next = booleanOperation(shape, panel, "cut");
+          shape.delete();
+          shape = next;
+        } finally {
+          panel.delete();
+        }
+        for (const run of gridfinityLabelTextRuns(body, labelLayout, gridfinityLabelMode.value)) {
+          const text = boxShape(run.x, run.y, run.z, run.width, run.depth, run.height);
+          try {
+            const next = booleanOperation(shape, text, gridfinityLabelMode.value === "raised" ? "fuse" : "cut");
+            shape.delete();
+            shape = next;
+          } finally {
+            text.delete();
+          }
+        }
+      }
       if (gridfinityEnabled.checked) {
-        const withFeet = addGridfinityFeet(shape, readGridfinityLayout(body));
+        const gridfinityLayout = readGridfinityLayout(body);
+        const withFeet = addGridfinityFeet(shape, gridfinityLayout);
         shape.delete();
         shape = withFeet;
+        if (gridfinityGripLabel.checked) {
+          const withStackingLip = addGridfinityStackingLip(
+            shape,
+            body,
+            parameters.radius,
+            getVerticalEdges(activeEdges(body)),
+            gridfinityLayout
+          );
+          shape.delete();
+          shape = withStackingLip;
+        }
       }
       for (const cut of containerCuts) {
         const cutter = makeContainerCut(body, cut);
@@ -1669,6 +2055,7 @@ function setupViewport() {
 
   function animate() {
     controls.update();
+    updateDividerHeightEditorPosition();
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
   }
@@ -1812,7 +2199,7 @@ function updateModel() {
         : `Innen: Ø ${innerWidth.toFixed(2)} × ${innerHeight.toFixed(2)} mm · Außen: ${dimensions}`;
     }
     modelInfo.textContent = body.isContainer
-      ? `${shapeLabels[body.shape]} · Außen${skadisEnabled.checked ? " ohne Haken" : ""}: ${dimensions}${gridfinityEnabled.checked ? " · Füße zusätzlich 4,75 mm" : ""}`
+      ? `${shapeLabels[body.shape]} · Außen${skadisEnabled.checked ? " ohne Haken" : ""}: ${dimensions}${gridfinityEnabled.checked ? " · Füße zusätzlich 4,75 mm" : ""}${gridfinityEnabled.checked && gridfinityGripLabel.checked ? ` · Stapelrand +${GRIDFINITY_STACKING_LIP_HEIGHT.toFixed(1)} mm` : ""}`
       : `${shapeLabels[body.shape]} · ${features.length} Geometrie${features.length === 1 ? "" : "n"} · ${dimensions}`;
     showModel(currentShape);
     const roundingStatus = nextModel.fillet.skipped > 0
@@ -1983,6 +2370,7 @@ bodyFields.addEventListener("input", (event) => {
   const input = event.target;
   if (input.dataset.bodyProp) {
     initialBody[input.dataset.bodyProp] = Number(input.value);
+    if (input.dataset.bodyProp === "height") syncGridfinityHeightFromBody();
   }
   scheduleUpdate();
 });
@@ -2016,12 +2404,16 @@ document.querySelector("#edges-none").addEventListener("click", () => {
   scheduleUpdate();
 });
 [measureMode, wallInput, baseInput, lidThickness, lidClearance, lidInsertDepth].forEach((input) => {
-  input.addEventListener("input", scheduleUpdate);
+  input.addEventListener("input", () => {
+    if (input === measureMode || input === baseInput) syncGridfinityHeightFromBody();
+    scheduleUpdate();
+  });
   input.addEventListener("change", () => {
     if (input === measureMode || input === wallInput) {
       if (gridfinityEnabled.checked && gridfinityResizePending) resizeGridfinityBody();
       else snapGridfinityBody();
     }
+    if (input === measureMode || input === baseInput) syncGridfinityHeightFromBody();
     scheduleUpdate();
   });
 });
@@ -2066,6 +2458,14 @@ gridfinityEnabled.addEventListener("change", () => {
   snapGridfinityBody();
   scheduleUpdate();
 });
+gridfinityGripLabel.addEventListener("change", () => {
+  gridfinityLabelSettings.hidden = !gridfinityGripLabel.checked;
+  refreshGridfinityLabelWallHint();
+  scheduleUpdate();
+});
+gridfinityLabelText.addEventListener("input", scheduleUpdate);
+gridfinityLabelMode.addEventListener("change", scheduleUpdate);
+gridfinityHeight.addEventListener("input", updateBodyHeightFromGridfinity);
 gridfinityPitch.addEventListener("change", () => {
   if (gridfinityEnabled.checked) resizeGridfinityBody();
   scheduleUpdate();
@@ -2173,6 +2573,119 @@ function finishGridfinityDrag() {
 canvas.addEventListener("pointercancel", finishGridfinityDrag);
 canvas.addEventListener("lostpointercapture", finishGridfinityDrag);
 canvas.addEventListener("pointerup", finishGridfinityDrag, true);
+function canvasRaycaster(event) {
+  const rect = canvas.getBoundingClientRect();
+  const pointer = new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1,
+    -(event.clientY - rect.top) / rect.height * 2 + 1);
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(pointer, camera);
+  return raycaster;
+}
+
+function gridfinityWallFromHit(hit, body) {
+  if (!hit.face || body.shape !== "container" || !modelRoot) return null;
+  const localPoint = modelRoot.worldToLocal(hit.point.clone());
+  if (localPoint.z < -0.05 || localPoint.z > body.height + 0.05) return null;
+
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+  const localNormal = hit.face.normal.clone()
+    .applyMatrix3(normalMatrix)
+    .applyQuaternion(modelRoot.quaternion.clone().invert())
+    .normalize();
+  const radius = Number.isFinite(radiusInput.valueAsNumber) ? Math.max(0, radiusInput.valueAsNumber) : 0;
+  const cornerAllowance = radius + body.wall + 0.75;
+  if (Math.abs(localNormal.x) > Math.abs(localNormal.y) && Math.abs(localNormal.x) >= 0.7
+    && Math.abs(Math.abs(localPoint.x) - body.width / 2) <= cornerAllowance) {
+    return localPoint.x < 0 ? "left" : "right";
+  }
+  if (Math.abs(localNormal.y) > Math.abs(localNormal.x) && Math.abs(localNormal.y) >= 0.7
+    && Math.abs(Math.abs(localPoint.y) - body.depth / 2) <= cornerAllowance) {
+    return localPoint.y < 0 ? "front" : "back";
+  }
+  return null;
+}
+
+function dividerPixelsPerMillimeter(handle) {
+  const rect = canvas.getBoundingClientRect();
+  const origin = handle.position.clone().project(camera);
+  const top = handle.position.clone().add(new THREE.Vector3(0, 1, 0)).project(camera);
+  const pixelsPerMillimeter = -(top.y - origin.y) * rect.height / 2;
+  return Math.abs(pixelsPerMillimeter) < 0.1 ? undefined : pixelsPerMillimeter;
+}
+
+canvas.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || !dividerHandleOverlay || !modelRoot
+    || edgeMode.getAttribute("aria-pressed") === "true"
+    || gridfinityMove.getAttribute("aria-pressed") === "true"
+    || skadisMove.getAttribute("aria-pressed") === "true") return;
+  const raycaster = canvasRaycaster(event);
+  const hit = raycaster.intersectObjects(dividerHandleOverlay.children)[0];
+  if (!hit) return;
+  const handle = hit.object;
+  const pixelsPerMillimeter = dividerPixelsPerMillimeter(handle);
+  if (!pixelsPerMillimeter) {
+    setStatus("Zum Ziehen der Trennwandhöhe bitte eine Schräg- oder Seitenansicht wählen.");
+    return;
+  }
+  dividerDrag = {
+    body: readBody(),
+    handle,
+    keys: handle.userData.keys,
+    startY: event.clientY,
+    pixelsPerMillimeter,
+    startHeight: handle.userData.height,
+    currentHeight: handle.userData.height,
+    changed: false
+  };
+  showDividerHeightEditor(handle, dividerDrag.body);
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  controls.enabled = false;
+  canvas.setPointerCapture(event.pointerId);
+  setStatus("Trennwand ziehen – nur die Höhe wird geändert.");
+}, true);
+canvas.addEventListener("pointermove", (event) => {
+  if (!dividerDrag) return;
+  const height = clampDividerHeight(dividerDrag.body,
+    dividerDrag.startHeight + (event.clientY - dividerDrag.startY) / dividerDrag.pixelsPerMillimeter);
+  const roundedHeight = clampDividerHeight(dividerDrag.body, Math.round(height * 10) / 10);
+  if (Math.abs(roundedHeight - dividerDrag.currentHeight) < 0.05) return;
+  if (!dividerDrag.changed) {
+    clearTimeout(rebuildTimer);
+    modelVersion += 1;
+    exportButton.disabled = true;
+    exportLidButton.disabled = true;
+    exportSkadisHookButton.disabled = true;
+    exportGridfinityButton.disabled = true;
+  }
+  dividerDrag.currentHeight = roundedHeight;
+  dividerDrag.changed = true;
+  dividerDrag.keys.forEach((key) => { dividerState.heights[key] = roundedHeight; });
+  dividerDrag.handle.userData.height = roundedHeight;
+  dividerDrag.handle.position.y = modelRoot.position.y + dividerDrag.body.base + roundedHeight + 2.2;
+  if (document.activeElement !== dividerHeightValue) dividerHeightValue.value = String(roundedHeight);
+  updateDividerHeightEditorPosition();
+  refreshCellControls(dividerDrag.body);
+  setStatus(`Trennwandhöhe: ${roundedHeight.toFixed(1).replace(".", ",")} mm. Modell wird nach dem Loslassen neu berechnet.`);
+});
+function finishDividerDrag(event) {
+  if (!dividerDrag) return;
+  const changed = dividerDrag.changed;
+  dividerDrag = undefined;
+  skadisPointerStart = undefined;
+  controls.enabled = true;
+  event.stopImmediatePropagation();
+  if (changed) scheduleUpdate();
+  else setStatus("Modell bereit – du kannst die Ansicht drehen oder als STL exportieren.", "success");
+}
+canvas.addEventListener("pointercancel", finishDividerDrag, true);
+canvas.addEventListener("lostpointercapture", finishDividerDrag, true);
+canvas.addEventListener("pointerup", finishDividerDrag, true);
+dividerHeightEditor.addEventListener("pointerdown", (event) => event.stopPropagation());
+dividerHeightEditor.addEventListener("click", (event) => event.stopPropagation());
+dividerHeightValue.addEventListener("change", editDividerHeightFromOverlay);
+dividerHeightValue.addEventListener("blur", hideDividerHeightEditor);
+
 function skadisDragPoint(event, planeZ) {
   const rect = canvas.getBoundingClientRect();
   const pointer = new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1,
@@ -2247,6 +2760,19 @@ canvas.addEventListener("pointerup", (event) => {
       .find((intersection) => intersection.object.userData.skadisSlot);
     if (hit) {
       toggleSkadisSlot(hit.object.userData.skadisSlot.column, hit.object.userData.skadisSlot.row);
+      return;
+    }
+  }
+  if (gridfinityEnabled.checked && gridfinityGripLabel.checked && modelRoot) {
+    const modelHit = raycaster.intersectObject(modelRoot, true)[0];
+    const wall = modelHit ? gridfinityWallFromHit(modelHit, readBody()) : null;
+    if (wall) {
+      if (wall !== gridfinityGripWall) {
+        gridfinityGripWall = wall;
+        refreshGridfinityLabelWallHint();
+        setStatus(`Wand ${gridfinityWallNames[wall]} ausgewählt. Mulde und Beschriftungsfläche werden angepasst.`);
+        scheduleUpdate();
+      }
       return;
     }
   }
