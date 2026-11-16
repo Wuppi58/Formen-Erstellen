@@ -31,6 +31,42 @@ export function getBoxEdges(body, bottom = 0) {
   return edges;
 }
 
+export function getInnerBottomWallEdges(body) {
+  if (body.shape !== "container") return [];
+  const halfWidth = body.width / 2 - body.wall;
+  const halfDepth = body.depth / 2 - body.wall;
+  const z = body.base;
+  return [
+    { id: "inner-bottom-front", label: "Innenboden vorne", start: [-halfWidth, -halfDepth, z], end: [halfWidth, -halfDepth, z] },
+    { id: "inner-bottom-back", label: "Innenboden hinten", start: [-halfWidth, halfDepth, z], end: [halfWidth, halfDepth, z] },
+    { id: "inner-bottom-left", label: "Innenboden links", start: [-halfWidth, -halfDepth, z], end: [-halfWidth, halfDepth, z] },
+    { id: "inner-bottom-right", label: "Innenboden rechts", start: [halfWidth, -halfDepth, z], end: [halfWidth, halfDepth, z] }
+  ];
+}
+
+export function matchesInnerBottomWallEdge(body, wallId, first, last) {
+  const tolerance = 1e-5;
+  if (Math.abs(first[2] - body.base) > tolerance || Math.abs(last[2] - body.base) > tolerance) return false;
+  const halfWidth = body.width / 2 - body.wall;
+  const halfDepth = body.depth / 2 - body.wall;
+  const same = (a, b) => Math.abs(a - b) <= tolerance;
+  if (wallId === "inner-bottom-front" || wallId === "inner-bottom-back") {
+    const y = wallId === "inner-bottom-front" ? -halfDepth : halfDepth;
+    return same(first[1], y) && same(last[1], y)
+      && Math.abs(first[0] - last[0]) > tolerance
+      && Math.min(first[0], last[0]) >= -halfWidth - tolerance
+      && Math.max(first[0], last[0]) <= halfWidth + tolerance;
+  }
+  if (wallId === "inner-bottom-left" || wallId === "inner-bottom-right") {
+    const x = wallId === "inner-bottom-left" ? -halfWidth : halfWidth;
+    return same(first[0], x) && same(last[0], x)
+      && Math.abs(first[1] - last[1]) > tolerance
+      && Math.min(first[1], last[1]) >= -halfDepth - tolerance
+      && Math.max(first[1], last[1]) <= halfDepth + tolerance;
+  }
+  return false;
+}
+
 export function matchesBoxEdge(edge, first, last) {
   const same = (a, b) => a.every((value, index) => Math.abs(value - b[index]) < 1e-5);
   return (same(edge.start, first) && same(edge.end, last)) || (same(edge.start, last) && same(edge.end, first));

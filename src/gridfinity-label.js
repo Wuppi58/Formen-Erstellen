@@ -90,15 +90,15 @@ export function getGridfinityLabelLayout(body, text = "", radius = 0, wall = "fr
   }
   const wallFrame = getGridfinityWallFrame(body, wall);
   const cornerRadius = Number.isFinite(radius) ? Math.max(0, radius) : 0;
-  const endMargin = Math.max(body.wall, cornerRadius) + 0.02;
-  const scoopWidth = wallFrame.wallLength - 2 * endMargin;
+  const panelEndMargin = Math.max(body.wall, cornerRadius) + 0.02;
+  const scoopWidth = wallFrame.wallLength;
+  const panelWidth = wallFrame.wallLength - 2 * panelEndMargin;
   if (scoopWidth < 8) {
-    throw new Error("Die Box ist für eine ausreichend breite Griffmulde zu schmal. Mehr Fußraster oder kleinere Eckrundungen wählen.");
+    throw new Error("Die Box ist für eine ausreichend breite Griffmulde zu schmal. Mehr Fußraster oder dünnere Wände wählen.");
   }
   const scoopDepth = Math.min(12, (scoopWidth - 3) / 2);
   const scoopRadius = scoopDepth;
-  const panelWidth = scoopWidth;
-  const panelHeight = 7;
+  const panelHeight = 13;
   const panelDepth = Math.min(0.6, body.wall * 0.3);
   const panelBottom = body.height - panelHeight;
   const scoopBottom = body.height - scoopDepth;

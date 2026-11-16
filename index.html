@@ -79,10 +79,23 @@
             <p class="field-hint">Ein gemeinsamer Radius für die gewählten Kanten. Radius 0 lässt sie scharf.</p>
             <div id="edge-options">
               <button type="button" class="add-button edge-mode" id="edge-mode" aria-pressed="false">Kanten in 3D auswählen</button>
-              <p class="field-hint">Im Auswahlmodus farbige Markierungen anklicken: Orange ist ausgewählt, Blau nicht. Sie zeigen die ursprünglichen Kanten und werden nicht exportiert. Zum Bearbeiten der Fächer den Auswahlmodus wieder ausschalten.</p>
+              <p class="field-hint">Im Auswahlmodus farbige Markierungen anklicken: Orange ist ausgewählt, Blau nicht. Sie zeigen auswählbare Kanten und werden nicht exportiert. Zum Bearbeiten der Fächer den Auswahlmodus wieder ausschalten.</p>
               <div class="edge-actions"><button type="button" class="add-button" id="edges-all">Alle auswählen</button><button type="button" class="add-button" id="edges-none">Keine auswählen</button></div>
               <fieldset class="edge-list" id="edge-list"><legend class="field-label">Kanten des Grundkörpers</legend></fieldset>
               <p class="field-hint">Für große Rundungen an Boxen nur senkrechte Kanten auswählen. Waagerechte Rundungen sind durch Wand- und Bodenstärke begrenzt.</p>
+            </div>
+            <div id="inner-bottom-options" hidden>
+              <div class="divider"></div>
+              <label class="field-label" for="inner-bottom-radius">Innenradius Boden–Wand</label>
+              <div class="input-with-unit">
+                <input id="inner-bottom-radius" type="number" min="0" max="50" step="0.1" value="0" inputmode="decimal">
+                <span>mm</span>
+              </div>
+              <p class="field-hint">Separater Radius für die Innenseite. Er füllt die scharfe Bodenecke mit Material auf; zu große Radien für den Innenraum werden abgewiesen.</p>
+              <button type="button" class="add-button edge-mode" id="inner-bottom-face-mode" aria-pressed="false">Boden und Wand in 3D anklicken</button>
+              <p class="field-hint" id="inner-bottom-face-hint" aria-live="polite">Im Auswahlmodus Boden und gewünschte Innenwand anklicken, Reihenfolge egal.</p>
+              <fieldset class="edge-list" id="inner-bottom-edge-list"><legend class="field-label">Innenwände am Boden abrunden</legend></fieldset>
+              <p class="field-hint">Alternativ die gewünschten Wände hier per Checkbox oder über die markierten Innenkanten auswählen.</p>
             </div>
           </section>
 

@@ -8,7 +8,7 @@ import { getCutSpec } from "./container-cuts.js";
 import { clampDividerHeight, getCellDividerKeys, getDividerHeight, getDividerLayout, getLidDividerNotchDepth, resizeDividerCell } from "./container-dividers.js";
 import { getSkadisGrid, getSkadisPlan, hasSkadisFeatureConflict } from "./skadis.js";
 import { getInsertSpec, getSkadisBoardOffset } from "./skadis-inserts.js";
-import { getBoxEdges, getRoundedCellOutline, getVerticalEdges, matchesBoxEdge, polygonArea, roundedCutFits, verticalRoundingFits } from "./box-edges.js";
+import { getBoxEdges, getInnerBottomWallEdges, getRoundedCellOutline, getVerticalEdges, matchesBoxEdge, matchesInnerBottomWallEdge, polygonArea, roundedCutFits, verticalRoundingFits } from "./box-edges.js";
 import { GRIDFINITY_FOOT_HEIGHT, GRIDFINITY_STACKING_LIP_HEIGHT, getGridfinityLayout, gridfinityBoxDimensions, gridfinityCount, gridfinityFootProfile, gridfinityPlateOffset, gridfinitySocketProfile, gridfinityStackingLipProfile, snapGridfinityDimension } from "./gridfinity.js";
 import { getGridfinityLabelLayout, getGridfinityWallFrame } from "./gridfinity-label.js";
 
@@ -17,8 +17,13 @@ const bodyFields = document.querySelector("#body-fields");
 const featureList = document.querySelector("#feature-list");
 const featureCount = document.querySelector("#feature-count");
 const radiusInput = document.querySelector("#fillet-radius");
+const innerBottomRadiusInput = document.querySelector("#inner-bottom-radius");
+const innerBottomOptions = document.querySelector("#inner-bottom-options");
+const innerBottomFaceMode = document.querySelector("#inner-bottom-face-mode");
+const innerBottomFaceHint = document.querySelector("#inner-bottom-face-hint");
 const edgeOptions = document.querySelector("#edge-options");
 const edgeList = document.querySelector("#edge-list");
+const innerBottomEdgeList = document.querySelector("#inner-bottom-edge-list");
 const edgeMode = document.querySelector("#edge-mode");
 const exportButton = document.querySelector("#export-stl");
 const modelStatus = document.querySelector("#model-status");
@@ -120,10 +125,13 @@ let gridfinityDrag;
 let gridfinityCountError = "";
 let gridfinityResizePending = false;
 let gridfinityGripWall = "front";
+let innerBottomFloorSelected = false;
+let pendingInnerBottomWall = "";
 let selectedCell;
 let cellInputErrors = {};
 let dividerState = { countX: 1, countY: 1, fractionsX: [], fractionsY: [], heights: {} };
 const selectedEdges = new Set([...getBoxEdges(initialBody).map((edge) => edge.id), "ring-bottom", "ring-top"]);
+const selectedInnerBottomWalls = new Set();
 
 const features = [];
 const containerCuts = [];
@@ -175,6 +183,13 @@ function renderBodyFields() {
   exportLidButton.hidden = !isContainer || !lidEnabled.checked;
   radiusInput.disabled = isSphere;
   edgeOptions.hidden = isSphere;
+  innerBottomOptions.hidden = shape !== "container";
+  if (shape !== "container") {
+    innerBottomFaceMode.setAttribute("aria-pressed", "false");
+    innerBottomFloorSelected = false;
+    pendingInnerBottomWall = "";
+    innerBottomFaceHint.textContent = "Im Auswahlmodus Boden und gewünschte Innenwand anklicken, Reihenfolge egal.";
+  }
   roundSkadisHint.hidden = shape !== "roundContainer";
   if (edgeOptions.hidden) edgeMode.setAttribute("aria-pressed", "false");
   if (isSphere) {
@@ -250,6 +265,17 @@ function renderEdgeList() {
     label.append(input, document.createTextNode(edge.label));
     edgeList.appendChild(label);
   }
+  const innerLegend = innerBottomEdgeList.querySelector("legend");
+  innerBottomEdgeList.replaceChildren(innerLegend);
+  for (const edge of getInnerBottomWallEdges(readBody())) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.dataset.innerBottomWallId = edge.id;
+    input.checked = selectedInnerBottomWalls.has(edge.id);
+    label.append(input, document.createTextNode(edge.label));
+    innerBottomEdgeList.appendChild(label);
+  }
 }
 
 function renderEdgeOverlay() {
@@ -268,12 +294,20 @@ function renderEdgeOverlay() {
   if (!body.inputDimensionsValid) return;
   const markerSize = Math.max(0.7, Math.min(body.width, body.depth, body.height) * 0.035);
   edgeOverlay = new THREE.Group();
-  for (const edge of selectableEdges(body)) {
+  const markers = [
+    ...selectableEdges(body).map((edge) => ({ ...edge, innerBottomWall: false })),
+    ...getInnerBottomWallEdges(body).map((edge) => ({ ...edge, innerBottomWall: true }))
+  ];
+  for (const edge of markers) {
     const point = edge.start.map((value, index) => (value + edge.end[index]) / 2);
+    const isSelected = edge.innerBottomWall
+      ? selectedInnerBottomWalls.has(edge.id)
+      : selectedEdges.has(edge.id);
     const marker = new THREE.Mesh(new THREE.SphereGeometry(markerSize, 12, 8),
-      new THREE.MeshBasicMaterial({ color: selectedEdges.has(edge.id) ? "#e68c2f" : "#547b95" }));
+      new THREE.MeshBasicMaterial({ color: isSelected ? "#e68c2f" : "#547b95" }));
     marker.position.set(modelRoot.position.x + point[0], modelRoot.position.y + point[2], modelRoot.position.z - point[1]);
     marker.userData.edgeId = edge.id;
+    marker.userData.innerBottomWall = edge.innerBottomWall;
     edgeOverlay.add(marker);
   }
   scene.add(edgeOverlay);
@@ -286,6 +320,81 @@ function updateEdgeSelection(id, checked) {
   renderEdgeList();
   renderEdgeOverlay();
   scheduleUpdate();
+}
+
+function updateInnerBottomWallSelection(id, checked) {
+  if (checked) selectedInnerBottomWalls.add(id);
+  else selectedInnerBottomWalls.delete(id);
+  renderEdgeList();
+  renderEdgeOverlay();
+  scheduleUpdate();
+}
+
+function innerBottomSurfaceFromHit(hit, body) {
+  if (!hit.face || body.shape !== "container" || !modelRoot) return null;
+  const localPoint = modelRoot.worldToLocal(hit.point.clone());
+  const normalMatrix = new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld);
+  const localNormal = hit.face.normal.clone()
+    .applyMatrix3(normalMatrix)
+    .applyQuaternion(modelRoot.quaternion.clone().invert())
+    .normalize();
+  const halfWidth = body.width / 2 - body.wall;
+  const halfDepth = body.depth / 2 - body.wall;
+  const tolerance = Math.min(0.75, body.wall * 0.4);
+  if (Math.abs(localPoint.z - body.base) <= tolerance && Math.abs(localNormal.z) >= 0.7
+    && Math.abs(localPoint.x) <= halfWidth + tolerance
+    && Math.abs(localPoint.y) <= halfDepth + tolerance) {
+    return { type: "floor" };
+  }
+  if (localPoint.z < body.base - tolerance || localPoint.z > body.height + tolerance) return null;
+  if (Math.abs(localNormal.y) >= 0.7
+    && Math.abs(localPoint.x) <= halfWidth + tolerance) {
+    if (Math.abs(localPoint.y + halfDepth) <= tolerance) return { type: "wall", id: "inner-bottom-front", label: "vorne" };
+    if (Math.abs(localPoint.y - halfDepth) <= tolerance) return { type: "wall", id: "inner-bottom-back", label: "hinten" };
+  }
+  if (Math.abs(localNormal.x) >= 0.7
+    && Math.abs(localPoint.y) <= halfDepth + tolerance) {
+    if (Math.abs(localPoint.x + halfWidth) <= tolerance) return { type: "wall", id: "inner-bottom-left", label: "links" };
+    if (Math.abs(localPoint.x - halfWidth) <= tolerance) return { type: "wall", id: "inner-bottom-right", label: "rechts" };
+  }
+  return null;
+}
+
+function handleInnerBottomSurfaceSelection(hit, body) {
+  const surface = innerBottomSurfaceFromHit(hit, body);
+  if (!surface) {
+    innerBottomFaceHint.textContent = "Bitte den Innenboden oder eine Innenwand anklicken.";
+    return;
+  }
+  if (surface.type === "floor") {
+    if (pendingInnerBottomWall) {
+      const wallId = pendingInnerBottomWall;
+      const wall = getInnerBottomWallEdges(body).find((edge) => edge.id === wallId);
+      pendingInnerBottomWall = "";
+      innerBottomFloorSelected = true;
+      updateInnerBottomWallSelection(wallId, !selectedInnerBottomWalls.has(wallId));
+      const wallLabel = wall ? wall.label.replace("Innenboden ", "").toLowerCase() : "ausgewählt";
+      innerBottomFaceHint.textContent = `Boden und Wand ${wallLabel} ausgewählt. Weitere Wände anklicken oder die Rundung anpassen.`;
+      return;
+    }
+    innerBottomFloorSelected = !innerBottomFloorSelected;
+    if (!innerBottomFloorSelected) {
+      pendingInnerBottomWall = "";
+      innerBottomFaceHint.textContent = "Bodenauswahl aufgehoben.";
+    } else {
+      innerBottomFaceHint.textContent = "Boden ausgewählt. Jetzt die gewünschte Innenwand anklicken.";
+    }
+    return;
+  }
+  if (!innerBottomFloorSelected) {
+    pendingInnerBottomWall = pendingInnerBottomWall === surface.id ? "" : surface.id;
+    innerBottomFaceHint.textContent = pendingInnerBottomWall
+      ? `Wand ${surface.label} gewählt. Jetzt den Innenboden anklicken.`
+      : "Wandauswahl aufgehoben.";
+    return;
+  }
+  updateInnerBottomWallSelection(surface.id, !selectedInnerBottomWalls.has(surface.id));
+  innerBottomFaceHint.textContent = `Wand ${surface.label} ${selectedInnerBottomWalls.has(surface.id) ? "ausgewählt" : "abgewählt"}. Boden bleibt ausgewählt.`;
 }
 
 function featureFields(feature) {
@@ -966,6 +1075,15 @@ function validateParameters(body) {
   if (radius > 0 && body.shape !== "sphere" && selection.length === 0) {
     return "Bitte mindestens eine Kante zum Abrunden auswählen oder den Radius auf 0 setzen.";
   }
+  const innerBottomRadius = innerBottomRadiusInput.valueAsNumber;
+  if (body.shape === "container") {
+    if (!Number.isFinite(innerBottomRadius) || innerBottomRadius < 0 || innerBottomRadius > 50) {
+      return "Der Innenradius muss zwischen 0 und 50 mm liegen.";
+    }
+    if (innerBottomRadius > 0 && selectedInnerBottomWalls.size === 0) {
+      return "Bitte mindestens eine Innenwand am Boden auswählen oder den Innenradius auf 0 setzen.";
+    }
+  }
   if (gridfinityEnabled.checked) {
     try {
       readGridfinityLayout(body);
@@ -1213,13 +1331,7 @@ function gridfinityRectangleProfileShape(sections) {
   const range = progressRange();
   try {
     for (const section of sections) {
-      const { width, depth, z } = section;
-      const wire = polygonWire([
-        [-width / 2, -depth / 2, z],
-        [width / 2, -depth / 2, z],
-        [width / 2, depth / 2, z],
-        [-width / 2, depth / 2, z]
-      ]);
+      const wire = gridfinityRectangleSection(section);
       loft.AddWire(wire);
       wire.delete();
     }
@@ -1257,7 +1369,7 @@ function addGridfinityFeet(shape, layout) {
 }
 
 function addGridfinityStackingLip(shape, body, radius, verticalEdges, layout) {
-  const profile = gridfinityStackingLipProfile(body, layout.pitch, layout.columns, layout.rows)
+  const profile = gridfinityStackingLipProfile(body, layout.pitch, layout.columns, layout.rows, radius, verticalEdges)
     .map((section) => ({ ...section, z: body.height + section.z }));
   const outer = roundedBoxShape(
     body.width,
@@ -1279,6 +1391,70 @@ function addGridfinityStackingLip(shape, body, radius, verticalEdges, layout) {
     return booleanOperation(shape, lip, "fuse");
   } finally {
     lip.delete();
+  }
+}
+
+function gridfinityRectangleSection(section) {
+  const { width, depth, z, cornerRadii } = section;
+  const halfWidth = width / 2;
+  const halfDepth = depth / 2;
+  const corners = [
+    { key: "frontLeft", x: -halfWidth, y: -halfDepth, angle: Math.PI },
+    { key: "frontRight", x: halfWidth, y: -halfDepth, angle: -Math.PI / 2 },
+    { key: "backRight", x: halfWidth, y: halfDepth, angle: 0 },
+    { key: "backLeft", x: -halfWidth, y: halfDepth, angle: Math.PI / 2 }
+  ].map((corner) => {
+    const radius = cornerRadii[corner.key];
+    return {
+      ...corner,
+      radius,
+      cx: corner.x + (corner.x < 0 ? 1 : -1) * radius,
+      cy: corner.y + (corner.y < 0 ? 1 : -1) * radius
+    };
+  });
+  const wireBuilder = new oc.BRepBuilderAPI_MakeWire_1();
+  const direction = new oc.gp_Dir_4(0, 0, 1);
+  try {
+    for (let index = 0; index < corners.length; index += 1) {
+      const corner = corners[index];
+      const next = corners[(index + 1) % corners.length];
+      const arcEndAngle = corner.angle + Math.PI / 2;
+      if (corner.radius > 0) {
+        const center = new oc.gp_Pnt_3(corner.cx, corner.cy, z);
+        const axis = new oc.gp_Ax2_3(center, direction);
+        const circle = new oc.gp_Circ_2(axis, corner.radius);
+        const arc = new oc.BRepBuilderAPI_MakeEdge_9(circle, corner.angle, arcEndAngle);
+        const edge = arc.Edge();
+        wireBuilder.Add_1(edge);
+        edge.delete();
+        arc.delete();
+        circle.delete();
+        axis.delete();
+        center.delete();
+      }
+      const start = new oc.gp_Pnt_3(
+        corner.cx + corner.radius * Math.cos(arcEndAngle),
+        corner.cy + corner.radius * Math.sin(arcEndAngle),
+        z
+      );
+      const nextStart = new oc.gp_Pnt_3(
+        next.cx + next.radius * Math.cos(next.angle),
+        next.cy + next.radius * Math.sin(next.angle),
+        z
+      );
+      const line = new oc.BRepBuilderAPI_MakeEdge_3(start, nextStart);
+      const edge = line.Edge();
+      wireBuilder.Add_1(edge);
+      edge.delete();
+      line.delete();
+      start.delete();
+      nextStart.delete();
+    }
+    if (!wireBuilder.IsDone()) throw new Error("Gridfinity-Stapelprofil konnte nicht erstellt werden.");
+    return wireBuilder.Wire();
+  } finally {
+    direction.delete();
+    wireBuilder.delete();
   }
 }
 
@@ -1364,9 +1540,9 @@ function rectangleWire(x, y, z, width, height) {
   ]);
 }
 
-function gridfinityScoopTool(body, layout) {
+function gridfinityScoopTool(body, layout, radius, verticalEdges) {
   const { scoop, wall, topZ } = layout;
-  const outerSkin = Math.min(body.wall - 0.3, Math.max(0.6, body.wall * 0.65));
+  const outerSkin = Math.max(0.05, Math.min(body.wall * 0.65, body.wall - 0.05));
   const edgeCoord = wall.outerCoord + wall.inwardSign * outerSkin;
   const scoopCoord = wall.innerCoord + wall.inwardSign * (scoop.depth + 0.02);
   const minCoord = Math.min(edgeCoord, scoopCoord);
@@ -1379,9 +1555,22 @@ function gridfinityScoopTool(body, layout) {
   const clip = wall.axis === "x"
     ? boxShape(0, (minCoord + maxCoord) / 2, minZ, scoop.width + 0.04, maxCoord - minCoord, scoop.depth + 0.04)
     : boxShape((minCoord + maxCoord) / 2, 0, minZ, maxCoord - minCoord, scoop.width + 0.04, scoop.depth + 0.04);
+  let safeEnvelope;
+  let safeClip;
   try {
-    return booleanOperation(cutter, clip, "common");
+    safeEnvelope = roundedBoxShape(
+      body.width - 2 * outerSkin,
+      body.depth - 2 * outerSkin,
+      scoop.depth + 0.04,
+      minZ,
+      Math.max(0, radius - outerSkin),
+      verticalEdges
+    );
+    safeClip = booleanOperation(clip, safeEnvelope, "common");
+    return booleanOperation(cutter, safeClip, "common");
   } finally {
+    if (safeClip) safeClip.delete();
+    if (safeEnvelope) safeEnvelope.delete();
     clip.delete();
     cutter.delete();
   }
@@ -1673,6 +1862,72 @@ function applyBoxFillet(shape, body, radius, selection, bottom = 0) {
   }
 }
 
+function applyInnerBottomFillet(shape, body, radius, wallIds) {
+  if (radius === 0 || wallIds.length === 0) return shape;
+  const found = new Map(wallIds.map((id) => [id, []]));
+  const explorer = new oc.TopExp_Explorer_2(shape, oc.TopAbs_ShapeEnum.TopAbs_EDGE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+  try {
+    while (explorer.More()) {
+      const current = explorer.Current();
+      const edge = oc.TopoDS.Edge_1(current);
+      current.delete();
+      let retained = false;
+      try {
+        const first = oc.TopExp.FirstVertex(edge, true);
+        const last = oc.TopExp.LastVertex(edge, true);
+        try {
+          const a = oc.BRep_Tool.Pnt(first);
+          const b = oc.BRep_Tool.Pnt(last);
+          try {
+            for (const id of wallIds) {
+              if (matchesInnerBottomWallEdge(body, id, [a.X(), a.Y(), a.Z()], [b.X(), b.Y(), b.Z()])) {
+                found.get(id).push(edge);
+                retained = true;
+              }
+            }
+          } finally {
+            a.delete();
+            b.delete();
+          }
+        } finally {
+          first.delete();
+          last.delete();
+        }
+      } finally {
+        if (!retained) edge.delete();
+      }
+      explorer.Next();
+    }
+    const missing = wallIds.filter((id) => found.get(id).length === 0);
+    if (missing.length) {
+      throw new Error("Mindestens eine gewählte Innenwand-Bodenkante konnte nicht gefunden werden.");
+    }
+    const builder = new oc.BRepFilletAPI_MakeFillet(shape, oc.ChFi3d_FilletShape.ChFi3d_Rational);
+    try {
+      for (const edges of found.values()) {
+        for (const edge of edges) builder.Add_2(radius, edge);
+      }
+      const range = progressRange();
+      try {
+        builder.Build(range);
+        if (!builder.IsDone()) {
+          throw new Error("Der Innenradius passt nicht an die gewählten Boden-Wand-Kanten. Radius oder Auswahl anpassen.");
+        }
+        return builder.Shape();
+      } finally {
+        range.delete();
+      }
+    } finally {
+      builder.delete();
+    }
+  } finally {
+    explorer.delete();
+    for (const edges of found.values()) {
+      edges.forEach((edge) => edge.delete());
+    }
+  }
+}
+
 function applyCircularFillet(shape, body, radius, selection) {
   if (radius === 0 || !selection.length) return shape;
   const found = new Map();
@@ -1804,6 +2059,11 @@ function buildModel(parameters) {
       }
       shape.delete();
       shape = hollow;
+      if (body.shape === "container" && parameters.innerBottomRadius > 0) {
+        const innerRounded = applyInnerBottomFillet(shape, body, parameters.innerBottomRadius, parameters.innerBottomWalls);
+        shape.delete();
+        shape = innerRounded;
+      }
 
       if (body.shape === "container") {
         for (const segment of readDividerLayout(body).segments) {
@@ -1845,7 +2105,7 @@ function buildModel(parameters) {
           parameters.radius,
           gridfinityGripWall
         );
-        const scoop = gridfinityScoopTool(body, labelLayout);
+        const scoop = gridfinityScoopTool(body, labelLayout, parameters.radius, verticalEdges);
         try {
           const next = booleanOperation(shape, scoop, "cut");
           shape.delete();
@@ -2098,7 +2358,8 @@ function showModel(shape) {
       URL.revokeObjectURL(currentModelUrl);
     }
     currentModelUrl = url;
-    const preserveView = Boolean(modelRoot && (skadisEnabled.checked || gridfinityEnabled.checked || selectedCell || edgeMode.getAttribute("aria-pressed") === "true"));
+    const preserveView = Boolean(modelRoot && (skadisEnabled.checked || gridfinityEnabled.checked || selectedCell
+      || edgeMode.getAttribute("aria-pressed") === "true" || innerBottomFaceMode.getAttribute("aria-pressed") === "true"));
     if (modelRoot) {
       scene.remove(modelRoot);
       modelRoot.traverse((object) => {
@@ -2147,7 +2408,12 @@ function showModel(shape) {
 
 function updateModel() {
   const body = readBody();
-  const parameters = { body, radius: Number(radiusInput.value) };
+  const parameters = {
+    body,
+    radius: Number(radiusInput.value),
+    innerBottomRadius: Number(innerBottomRadiusInput.value),
+    innerBottomWalls: [...selectedInnerBottomWalls]
+  };
   const validationMessage = validateParameters(body);
   exportLidButton.disabled = true;
   exportSkadisHookButton.disabled = true;
@@ -2375,12 +2641,31 @@ bodyFields.addEventListener("input", (event) => {
   scheduleUpdate();
 });
 radiusInput.addEventListener("input", scheduleUpdate);
+innerBottomRadiusInput.addEventListener("input", scheduleUpdate);
 edgeMode.addEventListener("click", () => {
   const active = edgeMode.getAttribute("aria-pressed") !== "true";
   edgeMode.setAttribute("aria-pressed", String(active));
   if (active) {
+    innerBottomFaceMode.setAttribute("aria-pressed", "false");
     skadisMove.setAttribute("aria-pressed", "false");
     gridfinityMove.setAttribute("aria-pressed", "false");
+  }
+  renderEdgeOverlay();
+});
+innerBottomFaceMode.addEventListener("click", () => {
+  const active = innerBottomFaceMode.getAttribute("aria-pressed") !== "true";
+  innerBottomFaceMode.setAttribute("aria-pressed", String(active));
+  if (active) {
+    edgeMode.setAttribute("aria-pressed", "false");
+    skadisMove.setAttribute("aria-pressed", "false");
+    gridfinityMove.setAttribute("aria-pressed", "false");
+    innerBottomFloorSelected = false;
+    pendingInnerBottomWall = "";
+    innerBottomFaceHint.textContent = "Klicke zuerst den Innenboden oder eine Innenwand an.";
+  } else {
+    innerBottomFloorSelected = false;
+    pendingInnerBottomWall = "";
+    innerBottomFaceHint.textContent = "Im Auswahlmodus Boden und gewünschte Innenwand anklicken, Reihenfolge egal.";
   }
   renderEdgeOverlay();
 });
@@ -2390,6 +2675,13 @@ edgeList.addEventListener("change", (event) => {
   const id = input.dataset.edgeId;
   updateEdgeSelection(id, input.checked);
   edgeList.querySelector(`[data-edge-id="${id}"]`).focus();
+});
+innerBottomEdgeList.addEventListener("change", (event) => {
+  const input = event.target;
+  const id = input.dataset.innerBottomWallId;
+  if (!id) return;
+  updateInnerBottomWallSelection(id, input.checked);
+  innerBottomEdgeList.querySelector(`[data-inner-bottom-wall-id="${id}"]`).focus();
 });
 document.querySelector("#edges-all").addEventListener("click", () => {
   for (const edge of selectableEdges(readBody())) selectedEdges.add(edge.id);
@@ -2485,6 +2777,7 @@ gridfinityMove.addEventListener("click", () => {
   if (moving) {
     skadisMove.setAttribute("aria-pressed", "false");
     edgeMode.setAttribute("aria-pressed", "false");
+    innerBottomFaceMode.setAttribute("aria-pressed", "false");
     renderEdgeOverlay();
     if (modelRoot) resetCamera(true);
   }
@@ -2504,6 +2797,7 @@ skadisMove.addEventListener("click", () => {
   skadisMove.setAttribute("aria-pressed", String(moving));
   if (moving) {
     edgeMode.setAttribute("aria-pressed", "false");
+    innerBottomFaceMode.setAttribute("aria-pressed", "false");
     gridfinityMove.setAttribute("aria-pressed", "false");
     renderEdgeOverlay();
   }
@@ -2745,6 +3039,12 @@ canvas.addEventListener("pointerup", (event) => {
   );
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(pointer, camera);
+  if (innerBottomFaceMode.getAttribute("aria-pressed") === "true") {
+    const modelHit = modelRoot ? raycaster.intersectObject(modelRoot, true)[0] : null;
+    if (modelHit) handleInnerBottomSurfaceSelection(modelHit, readBody());
+    else innerBottomFaceHint.textContent = "Klicke eine sichtbare Innenfläche der Box an.";
+    return;
+  }
   if (edgeMode.getAttribute("aria-pressed") === "true") {
     if (!edgeOverlay || !modelRoot) return;
     const marker = raycaster.intersectObjects(edgeOverlay.children)[0];
@@ -2752,7 +3052,11 @@ canvas.addEventListener("pointerup", (event) => {
     const modelHit = raycaster.intersectObject(modelRoot, true)[0];
     if (modelHit && modelHit.distance + 0.05 < marker.distance) return;
     const id = marker.object.userData.edgeId;
-    updateEdgeSelection(id, !selectedEdges.has(id));
+    if (marker.object.userData.innerBottomWall) {
+      updateInnerBottomWallSelection(id, !selectedInnerBottomWalls.has(id));
+    } else {
+      updateEdgeSelection(id, !selectedEdges.has(id));
+    }
     return;
   }
   if (skadisOverlay && camera.position.z < skadisOverlay.children[0].position.z) {

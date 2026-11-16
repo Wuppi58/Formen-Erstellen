@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getBoxEdges, getRoundedCellOutline, matchesBoxEdge, polygonArea, roundedCutFits, verticalRoundingFits } from "../src/box-edges.js";
+import { getBoxEdges, getInnerBottomWallEdges, getRoundedCellOutline, matchesBoxEdge, matchesInnerBottomWallEdge, polygonArea, roundedCutFits, verticalRoundingFits } from "../src/box-edges.js";
 
 const body = { width: 60, depth: 40, height: 40, wall: 2, base: 2 };
 const front = ["vertical-front-left", "vertical-front-right"];
@@ -12,6 +12,17 @@ test("box edge descriptions identify each of the twelve original edges in either
   assert.ok(matchesBoxEdge(edge, [-30, -20, 0], [-30, -20, 40]));
   assert.ok(matchesBoxEdge(edge, [-30, -20, 40], [-30, -20, 0]));
   assert.ok(!matchesBoxEdge(edge, [30, -20, 0], [30, -20, 40]));
+});
+
+test("inner bottom wall edges identify the four selectable floor-to-wall joins", () => {
+  const edges = getInnerBottomWallEdges({ ...body, shape: "container" });
+  assert.deepEqual(edges.map((edge) => edge.id), [
+    "inner-bottom-front", "inner-bottom-back", "inner-bottom-left", "inner-bottom-right"
+  ]);
+  const front = edges[0];
+  assert.ok(matchesInnerBottomWallEdge({ ...body, shape: "container" }, front.id, [-27, -18, 2], [27, -18, 2]));
+  assert.ok(!matchesInnerBottomWallEdge({ ...body, shape: "container" }, front.id, [-27, -18, 0], [27, -18, 0]));
+  assert.ok(getInnerBottomWallEdges({ ...body, shape: "box" }).length === 0);
 });
 
 test("large rounding allows tangent front corners but rejects overlapping corners", () => {

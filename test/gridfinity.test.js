@@ -93,6 +93,24 @@ test("Stapelrandprofil hat 3,8 mm Höhe und ausreichend Platz für das Fußraste
   assert.equal(profile[4].depth, profile[3].depth);
 });
 
+test("Stapelrand-Innenprofil folgt den gerundeten Außenecken", () => {
+  const body = { shape: "container", width: 83.5, depth: 41.5, wall: 2 };
+  const edges = [
+    "vertical-front-left",
+    "vertical-front-right",
+    "vertical-back-left",
+    "vertical-back-right"
+  ];
+  const profile = gridfinityStackingLipProfile(body, 42, 2, 1, 3.5, edges);
+  assert.equal(profile[0].cornerRadii.frontLeft, 1.5);
+  assert.ok(Math.abs(profile[3].cornerRadii.frontLeft - 2.9) < 1e-8);
+  assert.ok(Math.abs(profile[3].cornerRadii.backRight - 2.9) < 1e-8);
+
+  const partial = gridfinityStackingLipProfile(body, 42, 2, 1, 3.5, ["vertical-front-left"]);
+  assert.ok(partial[3].cornerRadii.frontLeft > 0);
+  assert.equal(partial[3].cornerRadii.frontRight, 0);
+});
+
 test("Stapelrandprofil lehnt Wände ab, die das Fußraster blockieren", () => {
   assert.throws(() => gridfinityStackingLipProfile(
     { shape: "container", width: 41.5, depth: 41.5, wall: 3 },

@@ -69,7 +69,7 @@ export function gridfinitySocketProfile(pitch) {
   ];
 }
 
-export function gridfinityStackingLipProfile(body, pitch, columns, rows) {
+export function gridfinityStackingLipProfile(body, pitch, columns, rows, radius = 0, verticalEdges = []) {
   if (body.shape !== "container" || !GRIDFINITY_PITCHES.includes(pitch)
     || ![columns, rows].every((count) => Number.isInteger(count) && count >= 1)) {
     throw new Error("Für den Gridfinity-Stapelrand werden eine rechteckige Box und gültige Fußzahlen benötigt.");
@@ -85,13 +85,34 @@ export function gridfinityStackingLipProfile(body, pitch, columns, rows) {
   const topDepth = Math.min(body.depth - 0.2, Math.max(depth + 0.2, body.depth - 1.2));
   const shoulderWidth = Math.min(topWidth, width + 0.2);
   const shoulderDepth = Math.min(topDepth, depth + 0.2);
+  const selectedCorners = {
+    frontLeft: verticalEdges.includes("vertical-front-left"),
+    frontRight: verticalEdges.includes("vertical-front-right"),
+    backLeft: verticalEdges.includes("vertical-back-left"),
+    backRight: verticalEdges.includes("vertical-back-right")
+  };
   return [
     { z: -0.03, width, depth },
     { z: 0.7, width: shoulderWidth, depth: shoulderDepth },
     { z: 2.5, width: shoulderWidth, depth: shoulderDepth },
     { z: GRIDFINITY_STACKING_LIP_HEIGHT, width: topWidth, depth: topDepth },
     { z: GRIDFINITY_STACKING_LIP_HEIGHT + 0.03, width: topWidth, depth: topDepth }
-  ];
+  ].map((section) => {
+    const sideInset = Math.min((body.width - section.width) / 2, (body.depth - section.depth) / 2);
+    const cornerRadius = Math.max(0, radius - sideInset);
+    const safeCornerRadius = Math.max(0.0001, Math.min(
+      cornerRadius,
+      section.width / 2 - 0.0001,
+      section.depth / 2 - 0.0001
+    ));
+    return {
+      ...section,
+      cornerRadii: Object.fromEntries(Object.entries(selectedCorners).map(([corner, selected]) => [
+        corner,
+        selected && radius > 0 ? safeCornerRadius : 0
+      ]))
+    };
+  });
 }
 
 export function gridfinityPlateOffset(layout) {
